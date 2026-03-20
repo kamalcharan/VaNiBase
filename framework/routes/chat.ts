@@ -15,7 +15,7 @@ import { HTTP_STATUS, ERROR_CODES } from '../../shared/constants/index.js';
 export function createChatRouter(orchestrator: Orchestrator): Router {
   const router = Router();
 
-  router.post('/chat', async (req: Request, res: Response, next: NextFunction) => {
+  router.post('/', async (req: Request, res: Response, next: NextFunction) => {
     try {
       // Validate request body
       const { message } = req.body || {};
@@ -40,7 +40,7 @@ export function createChatRouter(orchestrator: Orchestrator): Router {
 
 // Backward-compatible stub router for when orchestrator isn't initialized yet
 export const chatRouter = Router();
-chatRouter.post('/chat', (_req: Request, res: Response) => {
+chatRouter.post('/', (_req: Request, res: Response) => {
   res.status(501).json({
     error: 'Orchestrator not initialized. Use createChatRouter() instead.',
     code: ERROR_CODES.VANI_ENGINE_ERROR,
