@@ -74,7 +74,7 @@ export interface TenantScopedDB {
   query<T = Record<string, unknown>>(
     sql: string,
     params: Record<string, unknown>
-  ): Promise<T[]>;
+  ): Promise<{ rows: T[] }>;
   queryOne<T = Record<string, unknown>>(
     sql: string,
     params: Record<string, unknown>

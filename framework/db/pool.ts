@@ -81,7 +81,7 @@ export function isPoolReady(): boolean {
  */
 export function createStubDB(tenantId: string): TenantScopedDB {
   return {
-    async query() { return []; },
+    async query() { return { rows: [] }; },
     async queryOne() { return null; },
     async queryForUpdate() { return []; },
     async execute() { return { rowCount: 0 }; },
@@ -142,14 +142,14 @@ function buildDBFromClient(client: PoolClient, tenantId: string): TenantScopedDB
   };
 
   return {
-    async query<T = Record<string, unknown>>(sql: string, params: Record<string, unknown>): Promise<T[]> {
+    async query<T = Record<string, unknown>>(sql: string, params: Record<string, unknown>): Promise<{ rows: T[] }> {
       await setTenantCtx();
       const { text, values } = toPositional(sql, params);
       console.info(`[DEBUG][DB][tx] query: ${text}`);
       console.info(`[DEBUG][DB][tx]   values: ${JSON.stringify(values)}`);
       const result = await client.query(text, values);
       console.info(`[DEBUG][DB][tx]   → ${result.rows.length} row(s) returned`);
-      return result.rows as T[];
+      return { rows: result.rows as T[] };
     },
 
     async queryOne<T = Record<string, unknown>>(sql: string, params: Record<string, unknown>): Promise<T | null> {
@@ -221,14 +221,14 @@ export function createTenantScopedDB(tenantId: string): TenantScopedDB {
   };
 
   return {
-    async query<T = Record<string, unknown>>(sql: string, params: Record<string, unknown>): Promise<T[]> {
+    async query<T = Record<string, unknown>>(sql: string, params: Record<string, unknown>): Promise<{ rows: T[] }> {
       return withClient(async (client) => {
         const { text, values } = toPositional(sql, params);
         console.info(`[DEBUG][DB] query: ${text}`);
         console.info(`[DEBUG][DB]   values: ${JSON.stringify(values)}`);
         const result = await client.query(text, values);
         console.info(`[DEBUG][DB]   → ${result.rows.length} row(s) returned`);
-        return result.rows as T[];
+        return { rows: result.rows as T[] };
       });
     },
 
