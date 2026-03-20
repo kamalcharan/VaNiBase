@@ -84,7 +84,7 @@ export async function executeSkill(
   try {
     result = await ctx.db.transaction(async (_tx) => {
       console.info(`[DEBUG][SkillExecutor]   Inside transaction, calling handler ${qualifiedName}...`);
-      return await handler(ctx, call.params);
+      return await handler(call.params, ctx);
     });
 
     const elapsed = Date.now() - start;
