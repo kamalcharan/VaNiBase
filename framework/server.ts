@@ -110,7 +110,7 @@ async function main() {
   protectedRouter.use(authMiddleware);
   protectedRouter.use(tenantContext);
   protectedRouter.use(rateLimitMiddleware);
-  protectedRouter.use(createChatRouter(orchestrator));
+  protectedRouter.use('/chat', createChatRouter(orchestrator));
   registerSkillsRoute(protectedRouter, orchestrator);
   protectedRouter.use(jobsRouter);
   app.use('/api/v1', protectedRouter);
