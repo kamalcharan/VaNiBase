@@ -261,12 +261,30 @@ export function createTenantScopedDB(tenantId: string): TenantScopedDB {
     },
 
     async transaction<T>(fn: (tx: TenantScopedDB) => Promise<T>): Promise<T> {
-      const client = await p.connect();
+      console.info(`[DEBUG][DB] transaction() called for tenant="${tenantId}" — acquiring client from pool...`);
+      let client: PoolClient;
       try {
+        client = await p.connect();
+        console.info(`[DEBUG][DB] Pool client acquired successfully`);
+      } catch (connErr) {
+        const msg = connErr instanceof Error ? connErr.message : String(connErr);
+        console.error(`[DEBUG][DB] pool.connect() FAILED: ${msg}`);
+        throw connErr;
+      }
+      try {
+        console.info(`[DEBUG][DB] Sending BEGIN...`);
         await client.query('BEGIN');
-        console.info(`[DEBUG][DB] Transaction BEGIN for tenant="${tenantId}"`);
-        await client.query('SELECT set_tenant_context($1)', [tenantId]);
-        console.info(`[DEBUG][DB] set_tenant_context("${tenantId}") called INSIDE transaction`);
+        console.info(`[DEBUG][DB] BEGIN ok. Sending set_tenant_context("${tenantId}")...`);
+        try {
+          await client.query('SELECT set_tenant_context($1)', [tenantId]);
+          console.info(`[DEBUG][DB] set_tenant_context ok`);
+        } catch (ctxErr) {
+          const msg = ctxErr instanceof Error ? ctxErr.message : String(ctxErr);
+          console.error(`[DEBUG][DB] set_tenant_context("${tenantId}") FAILED: ${msg}`);
+          console.error(`[DEBUG][DB] This may mean set_tenant_context() function does not exist in the database, or it validates tenant and the tenant_id is wrong`);
+          await client.query('ROLLBACK').catch(() => {});
+          throw ctxErr;
+        }
         try {
           const tx = buildDBFromClient(client, tenantId);
           const result = await fn(tx);
@@ -274,7 +292,7 @@ export function createTenantScopedDB(tenantId: string): TenantScopedDB {
           console.info(`[DEBUG][DB] Transaction COMMIT for tenant="${tenantId}"`);
           return result;
         } catch (err) {
-          await client.query('ROLLBACK');
+          await client.query('ROLLBACK').catch(() => {});
           const msg = err instanceof Error ? err.message : String(err);
           console.error(`[DEBUG][DB] Transaction ROLLBACK for tenant="${tenantId}": ${msg}`);
           throw err;
