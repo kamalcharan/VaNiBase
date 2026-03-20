@@ -1,0 +1,148 @@
+# ============================================================
+# VaNi Product Framework — Docker Compose Template
+# Task: F-05 | Copy into each product repo and customize .env
+# ============================================================
+# Usage:
+#   Dev:  docker compose --profile dev up
+#   Prod: docker compose --profile prod up
+# ============================================================
+
+services:
+
+  # --- API Server (Express + TypeScript) ---
+  api:
+    build:
+      context: .
+      dockerfile: infra/Dockerfile.api
+    ports:
+      - "${API_PORT:-3001}:3001"
+    environment:
+      NODE_ENV: ${NODE_ENV:-development}
+      PORT: 3001
+      DATABASE_URL: postgresql://${PG_USER:-vani}:${PG_PASSWORD:-vani}@postgres:5432/${PG_DATABASE:-vani}
+      REDIS_URL: redis://redis:6379
+      VLLM_ENDPOINT: http://vllm:8000/v1
+      VLLM_MODEL: ${VLLM_MODEL:-liquidai/lfm2-2.6b}
+      SUPABASE_URL: ${SUPABASE_URL}
+      SUPABASE_ANON_KEY: ${SUPABASE_ANON_KEY}
+      SUPABASE_SERVICE_KEY: ${SUPABASE_SERVICE_KEY}
+      CLAUDE_API_KEY: ${CLAUDE_API_KEY}
+      CLAUDE_MODEL: ${CLAUDE_MODEL:-claude-sonnet-4-20250514}
+      JWT_SECRET: ${JWT_SECRET}
+      PRODUCT_SLUG: ${PRODUCT_SLUG}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - ./skills:/app/skills:ro          # Mount skills for hot-reload in dev
+      - ./recipes:/app/recipes:ro        # Mount recipes
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3001/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  # --- Next.js Shell (UI) ---
+  shell:
+    build:
+      context: .
+      dockerfile: infra/Dockerfile.shell
+    ports:
+      - "${SHELL_PORT:-3000}:3000"
+    environment:
+      NEXT_PUBLIC_API_URL: http://api:3001
+      NEXT_PUBLIC_SUPABASE_URL: ${SUPABASE_URL}
+      NEXT_PUBLIC_SUPABASE_ANON_KEY: ${SUPABASE_ANON_KEY}
+      NEXT_PUBLIC_PRODUCT_SLUG: ${PRODUCT_SLUG}
+    depends_on:
+      - api
+    restart: unless-stopped
+
+  # --- PostgreSQL 16 (skill data + memory) ---
+  postgres:
+    image: pgvector/pgvector:pg16
+    ports:
+      - "${PG_PORT:-5432}:5432"
+    environment:
+      POSTGRES_USER: ${PG_USER:-vani}
+      POSTGRES_PASSWORD: ${PG_PASSWORD:-vani}
+      POSTGRES_DB: ${PG_DATABASE:-vani}
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+      - ./migrations:/docker-entrypoint-initdb.d:ro
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${PG_USER:-vani}"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  # --- Redis 7 (cache, sessions, BullMQ) ---
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    volumes:
+      - redis_data:/data
+    command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  # --- vLLM Inference Server (GPU required) ---
+  vllm:
+    image: vllm/vllm-openai:latest
+    profiles:
+      - gpu                              # Only start with: --profile gpu
+    ports:
+      - "${VLLM_PORT:-8000}:8000"
+    environment:
+      MODEL: ${VLLM_MODEL:-liquidai/lfm2-2.6b}
+      MAX_MODEL_LEN: 4096
+      GPU_MEMORY_UTILIZATION: "0.9"
+    command: >
+      --model ${VLLM_MODEL:-liquidai/lfm2-2.6b}
+      --max-model-len 4096
+      --gpu-memory-utilization 0.9
+      --enable-auto-tool-choice
+      --tool-call-parser hermes
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    volumes:
+      - vllm_cache:/root/.cache/huggingface
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 15s
+      timeout: 10s
+      retries: 5
+      start_period: 120s            # vLLM takes time to load model
+
+  # --- BullMQ Dashboard (dev only) ---
+  bull-board:
+    image: deadly0/bull-board
+    profiles:
+      - dev
+    ports:
+      - "3002:3000"
+    environment:
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+    depends_on:
+      - redis
+
+volumes:
+  pg_data:
+  redis_data:
+  vllm_cache:
