@@ -1,0 +1,28 @@
+{
+  "name": "vani-framework",
+  "version": "0.1.0",
+  "private": true,
+  "description": "VaNi Product Framework — AI-powered product platform",
+  "scripts": {
+    "dev": "tsx watch framework/server.ts",
+    "build": "tsc",
+    "start": "node dist/framework/server.js",
+    "lint": "eslint . --ext .ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "dependencies": {
+    "express": "^5.2.1"
+  },
+  "devDependencies": {
+    "@types/express": "^5.0.6",
+    "@types/node": "^25.5.0",
+    "@typescript-eslint/eslint-plugin": "^8.57.1",
+    "@typescript-eslint/parser": "^8.57.1",
+    "eslint": "^10.0.3",
+    "tsx": "^4.21.0",
+    "typescript": "^5.9.3"
+  }
+}
