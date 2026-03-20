@@ -42,6 +42,18 @@ export const API_PATHS = {
   TENANTS: '/api/v1/tenants',
 } as const;
 
+// --- Database Tables (vn_ prefix) ---
+export const TABLES = {
+  TENANTS: 'vn_tenants',
+  USERS: 'vn_users',
+  CONVERSATIONS: 'vn_conversations',
+  CONVERSATION_TURNS: 'vn_conversation_turns',
+  MEMORY_EMBEDDINGS: 'vn_memory_embeddings',
+  SKILL_EXECUTION_LOG: 'vn_skill_execution_log',
+  ESCALATION_LOG: 'vn_escalation_log',
+  SCHEDULED_JOBS: 'vn_scheduled_jobs',
+} as const;
+
 // --- Error Codes ---
 export const ERROR_CODES = {
   AUTH_MISSING: 'AUTH_MISSING',
