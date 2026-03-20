@@ -24,6 +24,7 @@ import { healthRouter } from './routes/health.js';
 import { createChatRouter } from './routes/chat.js';
 import { createRecipesRouter } from './routes/recipes.js';
 import { jobsRouter } from './routes/jobs.js';
+import { createSkillsRouter } from './routes/skills.js';
 import { authMiddleware } from './gateway/auth.js';
 import { tenantContext } from './gateway/tenant-context.js';
 import { rateLimitMiddleware } from './middleware/rate-limiter.js';
@@ -110,6 +111,7 @@ async function main() {
   protectedRouter.use(tenantContext);
   protectedRouter.use(rateLimitMiddleware);
   protectedRouter.use(createChatRouter(orchestrator));
+  protectedRouter.use(createSkillsRouter(orchestrator));
   protectedRouter.use(jobsRouter);
   app.use('/api/v1', protectedRouter);
 
@@ -122,6 +124,7 @@ async function main() {
     console.info(`[VaNi] Ready:    http://localhost:${config.port}/health/ready`);
     console.info(`[VaNi] Metrics:  http://localhost:${config.port}/metrics`);
     console.info(`[VaNi] Chat:     POST http://localhost:${config.port}/api/v1/chat`);
+    console.info(`[VaNi] Skills:   POST http://localhost:${config.port}/api/v1/skills/:skill/:function`);
   });
 
   return { app, orchestrator };
