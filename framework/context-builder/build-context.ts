@@ -25,6 +25,8 @@ export function buildSkillContext(
   const auth = req.auth!;
   const body = req.body as ChatRequest;
 
+  console.info(`[ContextBuilder] tenant_id=${auth.tenant_id} user_id=${auth.sub} tier=${auth.tier} pool_ready=${isPoolReady()}`);
+
   return {
     tenantId: auth.tenant_id,
     userId: auth.sub,

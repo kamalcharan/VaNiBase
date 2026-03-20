@@ -74,6 +74,7 @@ export async function executeSkill(
   }
 
   // 4. Execute inside a transaction
+  console.info(`[SkillExecutor] Executing ${qualifiedName} with tenant_id=${ctx.tenantId} user_id=${ctx.userId} tier=${ctx.tier} params=${JSON.stringify(call.params)}`);
   let result: SkillResult;
   try {
     result = await ctx.db.transaction(async (_tx) => {
@@ -97,7 +98,10 @@ export async function executeSkill(
   } catch (err) {
     const elapsed = Date.now() - start;
     const message = err instanceof Error ? err.message : String(err);
+    const stack = err instanceof Error ? err.stack : '';
     console.error(`[SkillExecutor] ${qualifiedName} threw after ${elapsed}ms: ${message}`);
+    console.error(`[SkillExecutor] Context: tenant_id=${ctx.tenantId} user_id=${ctx.userId}`);
+    if (stack) console.error(`[SkillExecutor] Stack: ${stack}`);
 
     // Prometheus metrics
     skillExecutionDuration.observe({ skill: call.skill, function: call.function, success: 'false' }, elapsed / 1000);
