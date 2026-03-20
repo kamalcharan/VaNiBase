@@ -21,11 +21,18 @@ let pool: pg.Pool | null = null;
 export function initPool(databaseUrl: string): pg.Pool {
   if (pool) return pool;
 
+  // Supabase transaction pooler (port 6543) requires SSL and doesn't support prepared statements
+  const isSupabasePooler = databaseUrl.includes('.supabase.') || databaseUrl.includes(':6543');
+  const needsSsl = isSupabasePooler || databaseUrl.includes('sslmode=require');
+
   pool = new Pool({
     connectionString: databaseUrl,
     max: POOL_DEFAULTS.MAX_CONNECTIONS,
     idleTimeoutMillis: POOL_DEFAULTS.IDLE_TIMEOUT_MS,
     connectionTimeoutMillis: POOL_DEFAULTS.CONNECTION_TIMEOUT_MS,
+    ...(needsSsl && { ssl: { rejectUnauthorized: false } }),
+    // Transaction pooler doesn't support prepared statements — use simple query protocol
+    ...(isSupabasePooler && { allowExitOnIdle: true }),
   });
 
   pool.on('error', (err) => {
@@ -75,9 +82,11 @@ export async function closePool(): Promise<void> {
 export async function checkPoolHealth(): Promise<boolean> {
   try {
     const p = getPool();
-    const result = await p.query('SELECT 1 AS ok');
-    return result.rows[0]?.ok === 1;
-  } catch {
+    // Use simple query (no prepared statement) — compatible with Supabase transaction pooler
+    const result = await p.query({ text: 'SELECT 1 AS ok', rowMode: 'array' });
+    return result.rows.length > 0;
+  } catch (err) {
+    console.error('[DB Pool] Health check failed:', err);
     return false;
   }
 }

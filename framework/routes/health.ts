@@ -7,7 +7,7 @@
 import { Router } from 'express';
 import type { Request, Response } from 'express';
 import { loadConfig } from '../config.js';
-import { checkPoolHealth } from '../db/index.js';
+import { checkPoolHealth, isPoolReady } from '../db/index.js';
 import { checkRedisHealth } from '../redis/index.js';
 
 export const healthRouter = Router();
@@ -27,9 +27,16 @@ healthRouter.get('/health', (_req: Request, res: Response) => {
 healthRouter.get('/health/ready', async (_req: Request, res: Response) => {
   const config = loadConfig();
   const checks: Record<string, boolean> = {};
+  const errors: Record<string, string> = {};
 
   // DB check
-  checks.postgres = await checkPoolHealth();
+  if (!isPoolReady()) {
+    checks.postgres = false;
+    errors.postgres = 'Pool not initialized (DATABASE_URL empty?)';
+  } else {
+    checks.postgres = await checkPoolHealth();
+    if (!checks.postgres) errors.postgres = 'SELECT 1 failed — see server logs for details';
+  }
 
   // Redis check
   checks.redis = await checkRedisHealth();
@@ -49,6 +56,7 @@ healthRouter.get('/health/ready', async (_req: Request, res: Response) => {
   res.status(allHealthy ? 200 : 503).json({
     status: allHealthy ? 'ready' : 'degraded',
     checks,
+    ...(Object.keys(errors).length > 0 && { errors }),
     timestamp: new Date().toISOString(),
   });
 });

@@ -10,6 +10,7 @@
  * 5. Start listening
  */
 
+import 'dotenv/config';
 import express from 'express';
 import { loadConfig } from './config.js';
 import { initPool } from './db/index.js';
@@ -31,9 +32,27 @@ import { boot } from './boot.js';
 async function main() {
   const config = loadConfig();
 
+  // --- Log masked DATABASE_URL so we can verify .env is loaded ---
+  if (config.databaseUrl) {
+    const masked = config.databaseUrl.replace(/:([^@]+)@/, ':****@');
+    console.info(`[VaNi] DATABASE_URL = ${masked}`);
+  } else {
+    console.warn('[VaNi] DATABASE_URL is empty — running without Postgres');
+  }
+
   // --- Initialize Infrastructure ---
   if (config.databaseUrl) {
     initPool(config.databaseUrl);
+
+    // Startup DB connection test — log full error if it fails
+    try {
+      const { getPool } = await import('./db/index.js');
+      const pool = getPool();
+      const result = await pool.query('SELECT 1 AS ok');
+      console.info(`[VaNi] DB startup check passed: ${JSON.stringify(result.rows[0])}`);
+    } catch (err) {
+      console.error('[VaNi] DB startup check FAILED:', err);
+    }
   }
 
   // Redis + Queue: only init if a valid redis:// URL is provided and reachable
