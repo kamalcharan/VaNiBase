@@ -1,0 +1,63 @@
+{
+  "name": "demo-dashboard",
+  "title": "Demo Dashboard",
+  "layout": "dashboard-3row",
+  "slots": [
+    {
+      "row": 1,
+      "components": [
+        {
+          "type": "kpi-card",
+          "data": "$.message",
+          "variant": "default",
+          "span": 2,
+          "props": {
+            "label": "Greeting",
+            "status": "success",
+            "prefix": ""
+          }
+        },
+        {
+          "type": "kpi-card",
+          "data": "$.tenant_name",
+          "variant": "default",
+          "span": 1,
+          "props": {
+            "label": "Tenant",
+            "status": "info"
+          }
+        }
+      ]
+    },
+    {
+      "row": 2,
+      "components": [
+        {
+          "type": "stat-row",
+          "data": "$",
+          "props": {
+            "stats": [
+              { "label": "Uptime", "value": "$.uptime_display" },
+              { "label": "Node.js", "value": "$.node_version" },
+              { "label": "Heap (MB)", "value": "$.memory_mb", "suffix": " MB" }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "row": 3,
+      "components": [
+        {
+          "type": "chat-panel",
+          "data": "$.messages",
+          "props": {
+            "onSend": "/api/v1/chat",
+            "placeholder": "Ask VaNi anything...",
+            "contextLabel": "Demo Mode"
+          }
+        }
+      ]
+    }
+  ]
+}

@@ -12,7 +12,7 @@ import type {
   ConversationTurn,
   Channel,
 } from '../shared/types/index.js';
-import { VaniEngine } from './vani-engine/index.js';
+import { VaniEngine, MockVaniEngine } from './vani-engine/index.js';
 import { EscalationHandler } from './escalation/index.js';
 import { SkillRegistryImpl, executeSkill } from './skill-executor/index.js';
 import { RecipeRegistryImpl } from './recipes/index.js';
@@ -31,9 +31,10 @@ export class Orchestrator {
   readonly skillRegistry: SkillRegistryImpl;
   readonly recipeRegistry: RecipeRegistryImpl;
   readonly memoryStore: MemoryStoreImpl;
-  private vaniEngine: VaniEngine;
+  private vaniEngine: VaniEngine | MockVaniEngine;
   private escalationHandler: EscalationHandler;
   private systemPrompt: string;
+  readonly mockMode: boolean;
 
   constructor(opts?: { systemPrompt?: string }) {
     const config = loadConfig();
@@ -41,10 +42,19 @@ export class Orchestrator {
     this.skillRegistry = new SkillRegistryImpl();
     this.recipeRegistry = new RecipeRegistryImpl();
     this.memoryStore = new MemoryStoreImpl();
-    this.vaniEngine = new VaniEngine({
-      endpoint: config.vllmEndpoint,
-      model: config.vllmModel,
-    });
+
+    // Use mock engine when vLLM is unavailable
+    this.mockMode = !config.vllmEndpoint || config.vllmEndpoint === 'mock' || process.env.VANI_MOCK === 'true';
+    if (this.mockMode) {
+      console.info('[Orchestrator] Mock VaNi mode — keyword-based intent classification');
+      this.vaniEngine = new MockVaniEngine();
+    } else {
+      this.vaniEngine = new VaniEngine({
+        endpoint: config.vllmEndpoint,
+        model: config.vllmModel,
+      });
+    }
+
     this.escalationHandler = new EscalationHandler({
       claudeApiKey: config.claudeApiKey,
       claudeModel: config.claudeModel,
@@ -57,19 +67,24 @@ export class Orchestrator {
     const body = req.body as ChatRequest;
     const channel = (body.channel || DEFAULT_CHANNEL) as Channel;
 
-    // Track VaNi interaction count
-    await incrementVaniCounter(auth.tenant_id);
+    // Track VaNi interaction count (fail-open if Redis unavailable)
+    try { await incrementVaniCounter(auth.tenant_id); } catch { /* Redis may be down in dev */ }
 
     // Build escalation callback, then SkillContext
     const escalateFn = this.escalationHandler.createEscalateFn(this.systemPrompt);
     const ctx = buildSkillContext(req, escalateFn, this.memoryStore);
 
-    // Fetch conversation history
-    const history = await this.memoryStore.getHistory(auth.tenant_id, body.entity_id ?? null, 10);
-    const historyMessages: LFM2Message[] = history.map((t) => ({
-      role: t.role as 'user' | 'assistant',
-      content: t.content,
-    }));
+    // Fetch conversation history (graceful if DB unavailable)
+    let historyMessages: LFM2Message[] = [];
+    try {
+      const history = await this.memoryStore.getHistory(auth.tenant_id, body.entity_id ?? null, 10);
+      historyMessages = history.map((t) => ({
+        role: t.role as 'user' | 'assistant',
+        content: t.content,
+      }));
+    } catch {
+      // DB may not be available in dev/mock mode
+    }
 
     // Build tool definitions for this tier
     const tools = this.skillRegistry.buildToolDefinitions(auth.tier);
@@ -165,8 +180,13 @@ export class Orchestrator {
       timestamp: new Date().toISOString(),
     };
 
-    await this.memoryStore.saveTurn(userTurn);
-    await this.memoryStore.saveTurn(assistantTurn);
+    // Persist turns (graceful if DB unavailable)
+    try {
+      await this.memoryStore.saveTurn(userTurn);
+      await this.memoryStore.saveTurn(assistantTurn);
+    } catch (err) {
+      console.error('[Orchestrator] Failed to save conversation turns:', (err as Error).message);
+    }
 
     return {
       reply,

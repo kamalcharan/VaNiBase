@@ -21,8 +21,9 @@ services:
       PORT: 3001
       DATABASE_URL: postgresql://${PG_USER:-vani}:${PG_PASSWORD:-vani}@postgres:5432/${PG_DATABASE:-vani}
       REDIS_URL: redis://redis:6379
-      VLLM_ENDPOINT: http://vllm:8000/v1
+      VLLM_ENDPOINT: ${VLLM_ENDPOINT:-mock}
       VLLM_MODEL: ${VLLM_MODEL:-liquidai/lfm2-2.6b}
+      VANI_MOCK: ${VANI_MOCK:-true}
       SUPABASE_URL: ${SUPABASE_URL}
       SUPABASE_ANON_KEY: ${SUPABASE_ANON_KEY}
       SUPABASE_SERVICE_KEY: ${SUPABASE_SERVICE_KEY}
@@ -73,6 +74,7 @@ services:
     volumes:
       - pg_data:/var/lib/postgresql/data
       - ./migrations:/docker-entrypoint-initdb.d:ro
+      - ./seeds:/seeds:ro
     restart: unless-stopped
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${PG_USER:-vani}"]

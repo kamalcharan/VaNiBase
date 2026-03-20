@@ -41,6 +41,26 @@ export function getPool(): pg.Pool {
   return pool;
 }
 
+export function isPoolReady(): boolean {
+  return pool !== null;
+}
+
+/**
+ * Stub TenantScopedDB for dev/mock mode when no Postgres is available.
+ * All queries return empty results; writes are no-ops.
+ */
+export function createStubDB(tenantId: string): TenantScopedDB {
+  return {
+    async query() { return []; },
+    async queryOne() { return null; },
+    async queryForUpdate() { return []; },
+    async execute() { return { rowCount: 0 }; },
+    async transaction<T>(fn: (tx: TenantScopedDB) => Promise<T>): Promise<T> {
+      return fn(createStubDB(tenantId));
+    },
+  };
+}
+
 export async function closePool(): Promise<void> {
   if (pool) {
     await pool.end();

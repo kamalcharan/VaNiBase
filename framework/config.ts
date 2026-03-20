@@ -23,7 +23,7 @@ export function loadConfig(): FrameworkConfig {
     port: parseInt(process.env.PORT || '3001', 10),
     nodeEnv: (process.env.NODE_ENV as FrameworkConfig['nodeEnv']) || 'development',
     databaseUrl: process.env.DATABASE_URL || '',
-    redisUrl: process.env.REDIS_URL || 'redis://localhost:6379',
+    redisUrl: process.env.REDIS_URL ?? 'redis://localhost:6379',
     vllmEndpoint: process.env.VLLM_ENDPOINT || 'http://localhost:8000/v1',
     vllmModel: process.env.VLLM_MODEL || 'liquidai/lfm2-2.6b',
     claudeApiKey: process.env.CLAUDE_API_KEY || '',

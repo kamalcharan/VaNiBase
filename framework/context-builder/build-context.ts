@@ -11,7 +11,7 @@ import type {
   ChatRequest,
 } from '../../shared/types/index.js';
 import { DEFAULT_CHANNEL } from '../../shared/constants/index.js';
-import { createTenantScopedDB } from '../db/index.js';
+import { isPoolReady, createTenantScopedDB, createStubDB } from '../db/index.js';
 import { enqueueJob } from '../queue/index.js';
 
 /**
@@ -29,15 +29,20 @@ export function buildSkillContext(
     tenantId: auth.tenant_id,
     userId: auth.sub,
     tier: auth.tier,
-    db: createTenantScopedDB(auth.tenant_id),
+    db: isPoolReady() ? createTenantScopedDB(auth.tenant_id) : createStubDB(auth.tenant_id),
     memory: memoryStore,
     escalate: escalateFn,
     enqueue: async (jobType: string, payload: Record<string, unknown>) => {
-      return enqueueJob(jobType, {
-        ...payload,
-        _tenantId: auth.tenant_id,
-        _userId: auth.sub,
-      });
+      try {
+        return await enqueueJob(jobType, {
+          ...payload,
+          _tenantId: auth.tenant_id,
+          _userId: auth.sub,
+        });
+      } catch {
+        console.warn(`[SkillContext] enqueue(${jobType}) failed — queue not available`);
+        return 'unavailable';
+      }
     },
     entityId: body.entity_id,
     entityType: undefined,
