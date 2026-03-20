@@ -168,7 +168,10 @@ CREATE TABLE IF NOT EXISTS vn_scheduled_jobs (
 
 CREATE INDEX idx_vn_jobs_tenant ON vn_scheduled_jobs(tenant_id);
 CREATE INDEX idx_vn_jobs_next_run ON vn_scheduled_jobs(next_run_at) WHERE active = true;
+<<<<<<< HEAD
 
+=======
+>>>>>>> claude/read-vani-phase-0-spec-OHEc0
 
 -- ============================================================
 -- RLS POLICIES
@@ -185,6 +188,7 @@ ALTER TABLE vn_scheduled_jobs ENABLE ROW LEVEL SECURITY;
 
 CREATE POLICY vn_tenant_isolation ON vn_tenants
     FOR ALL USING (id::text = current_setting('app.tenant_id', true));
+<<<<<<< HEAD
 CREATE POLICY vn_user_tenant_isolation ON vn_users
     FOR ALL USING (tenant_id::text = current_setting('app.tenant_id', true));
 CREATE POLICY vn_conversation_tenant_isolation ON vn_conversations
@@ -197,9 +201,29 @@ CREATE POLICY vn_skill_log_tenant_isolation ON vn_skill_execution_log
     FOR ALL USING (tenant_id::text = current_setting('app.tenant_id', true));
 CREATE POLICY vn_escalation_tenant_isolation ON vn_escalation_log
     FOR ALL USING (tenant_id::text = current_setting('app.tenant_id', true));
-CREATE POLICY vn_jobs_tenant_isolation ON vn_scheduled_jobs
+=======
+
+CREATE POLICY vn_user_tenant_isolation ON vn_users
     FOR ALL USING (tenant_id::text = current_setting('app.tenant_id', true));
 
+CREATE POLICY vn_conversation_tenant_isolation ON vn_conversations
+    FOR ALL USING (tenant_id::text = current_setting('app.tenant_id', true));
+
+CREATE POLICY vn_turn_tenant_isolation ON vn_conversation_turns
+    FOR ALL USING (tenant_id::text = current_setting('app.tenant_id', true));
+
+CREATE POLICY vn_memory_tenant_isolation ON vn_memory_embeddings
+    FOR ALL USING (tenant_id::text = current_setting('app.tenant_id', true));
+
+CREATE POLICY vn_skill_log_tenant_isolation ON vn_skill_execution_log
+    FOR ALL USING (tenant_id::text = current_setting('app.tenant_id', true));
+
+CREATE POLICY vn_escalation_tenant_isolation ON vn_escalation_log
+    FOR ALL USING (tenant_id::text = current_setting('app.tenant_id', true));
+
+>>>>>>> claude/read-vani-phase-0-spec-OHEc0
+CREATE POLICY vn_jobs_tenant_isolation ON vn_scheduled_jobs
+    FOR ALL USING (tenant_id::text = current_setting('app.tenant_id', true));
 
 -- ============================================================
 -- HELPER FUNCTIONS
@@ -226,4 +250,8 @@ CREATE TRIGGER trg_vn_tenants_updated
 
 CREATE TRIGGER trg_vn_users_updated
     BEFORE UPDATE ON vn_users
+<<<<<<< HEAD
     FOR EACH ROW EXECUTE FUNCTION update_updated_at();
+=======
+    FOR EACH ROW EXECUTE FUNCTION update_updated_at();
+>>>>>>> claude/read-vani-phase-0-spec-OHEc0
