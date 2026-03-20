@@ -12,6 +12,7 @@
 
 import dotenv from 'dotenv';
 import express from 'express';
+import cors from 'cors';
 
 // --- Load .env before anything reads process.env ---
 dotenv.config();
@@ -89,6 +90,11 @@ async function main() {
   boot(orchestrator);
 
   // --- Core Middleware ---
+  app.use(cors({
+    origin: 'http://localhost:3000',
+    methods: ['GET', 'POST', 'PUT', 'DELETE'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'X-Dev-Tenant-Id', 'X-Dev-User-Id'],
+  }));
   app.use(express.json());
   app.use(metricsMiddleware);
   app.use(requestLogger);

@@ -46,10 +46,16 @@ export default function ChatPanel({ data }: Props) {
     setSending(true);
 
     try {
-      const endpoint = data?.onSend || `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'}/api/v1/chat`;
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
+      const endpoint = data?.onSend
+        ? (data.onSend.startsWith('/') ? `${apiUrl}${data.onSend}` : data.onSend)
+        : `${apiUrl}/api/v1/chat`;
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      const devTenantId = process.env.NEXT_PUBLIC_DEV_TENANT_ID;
+      if (devTenantId) headers['X-Dev-Tenant-Id'] = devTenantId;
       const res = await fetch(endpoint, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers,
         body: JSON.stringify({ message: text }),
       });
       const json = await res.json();

@@ -14,12 +14,17 @@ export function ShellLayout({ children }: { children: ReactNode }) {
     fetch(`${apiUrl}/api/v1/recipes`)
       .then((r) => (r.ok ? r.json() : []))
       .then((data) => {
-        if (Array.isArray(data)) setRecipes(data);
+        if (Array.isArray(data)) {
+          setRecipes(data);
+          if (data.length > 0 && !activeRecipe) {
+            setActiveRecipe(data[0].name);
+          }
+        }
       })
       .catch(() => {
         /* API not available — sidebar shows empty state */
       });
-  }, []);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
     <ThemeProvider>

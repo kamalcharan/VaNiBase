@@ -14,5 +14,14 @@ export function createRecipesRouter(registry: RecipeRegistryImpl): Router {
     res.json(registry.list());
   });
 
+  router.get('/recipes/:name', (req: Request, res: Response) => {
+    const recipe = registry.get(req.params.name as string);
+    if (!recipe) {
+      res.status(404).json({ error: `Recipe "${req.params.name}" not found` });
+      return;
+    }
+    res.json(recipe);
+  });
+
   return router;
 }
