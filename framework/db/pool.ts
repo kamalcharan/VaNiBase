@@ -21,13 +21,16 @@ let pool: pg.Pool | null = null;
 export function initPool(databaseUrl: string): pg.Pool {
   if (pool) return pool;
 
+  // pg v8 treats sslmode=require in the connection string as verify-full,
+  // which overrides our ssl config and rejects Supabase's self-signed certs.
+  // Strip sslmode from the URL so our explicit ssl config takes effect.
+  const cleanUrl = databaseUrl.replace(/[?&]sslmode=[^&]*/g, '').replace(/\?$/, '');
+
   pool = new Pool({
-    connectionString: databaseUrl,
+    connectionString: cleanUrl,
     max: POOL_DEFAULTS.MAX_CONNECTIONS,
     idleTimeoutMillis: POOL_DEFAULTS.IDLE_TIMEOUT_MS,
     connectionTimeoutMillis: POOL_DEFAULTS.CONNECTION_TIMEOUT_MS,
-    // Supabase (and most cloud Postgres) uses SSL certs that Node's default CA
-    // bundle doesn't trust. Always set rejectUnauthorized: false for cloud DBs.
     ssl: { rejectUnauthorized: false },
   });
 
