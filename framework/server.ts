@@ -10,8 +10,11 @@
  * 5. Start listening
  */
 
-import 'dotenv/config';
+import dotenv from 'dotenv';
 import express from 'express';
+
+// --- Load .env before anything reads process.env ---
+dotenv.config();
 import { loadConfig } from './config.js';
 import { initPool } from './db/index.js';
 import { initRedis } from './redis/index.js';
