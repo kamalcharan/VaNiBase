@@ -64,6 +64,7 @@ export interface SkillContext {
   db: TenantScopedDB;           // Pre-scoped database client
   memory: MemoryStore;           // Tenant-scoped conversation memory
   escalate: (prompt: string) => Promise<string>; // Claude API fallback
+  enqueue: (jobType: string, payload: Record<string, unknown>) => Promise<string>; // BullMQ async job dispatch
   entityId?: string;             // Optional entity context (client_id, contract_id, etc.)
   entityType?: string;           // From product config
   channel: Channel;
@@ -78,10 +79,15 @@ export interface TenantScopedDB {
     sql: string,
     params: Record<string, unknown>
   ): Promise<T | null>;
+  queryForUpdate<T = Record<string, unknown>>(
+    sql: string,
+    params: Record<string, unknown>
+  ): Promise<T[]>;
   execute(
     sql: string,
     params: Record<string, unknown>
   ): Promise<{ rowCount: number }>;
+  transaction<T>(fn: (tx: TenantScopedDB) => Promise<T>): Promise<T>;
 }
 
 export interface MemoryStore {

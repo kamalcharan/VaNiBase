@@ -54,6 +54,28 @@ export const TABLES = {
   SCHEDULED_JOBS: 'vn_scheduled_jobs',
 } as const;
 
+// --- Rate Limits (per tier, per day) ---
+export const RATE_LIMITS = {
+  starter: { vaniInteractions: 50, claudeEscalations: 0 },
+  professional: { vaniInteractions: 200, claudeEscalations: 5 },
+  enterprise: { vaniInteractions: Infinity, claudeEscalations: 20 },
+} as const;
+
+// --- Connection Pool ---
+export const POOL_DEFAULTS = {
+  MAX_CONNECTIONS: 20,
+  IDLE_TIMEOUT_MS: 30_000,
+  CONNECTION_TIMEOUT_MS: 5_000,
+} as const;
+
+// --- Job Types ---
+export const JOB_TYPES = {
+  DAILY_BRIEFING: 'daily_briefing',
+  REPORT_GENERATION: 'report_generation',
+  BULK_ALERT: 'bulk_alert',
+  NAV_FETCH: 'nav_fetch',
+} as const;
+
 // --- Error Codes ---
 export const ERROR_CODES = {
   AUTH_MISSING: 'AUTH_MISSING',
