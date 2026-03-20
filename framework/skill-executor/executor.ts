@@ -14,8 +14,8 @@ import { TIER_LEVELS, ERROR_CODES, TABLES } from '../../shared/constants/index.j
 import { skillExecutionDuration, skillExecutionTotal, skillErrorTotal } from '../middleware/metrics.js';
 
 export type SkillHandler = (
-  ctx: SkillContext,
-  params: Record<string, unknown>
+  params: Record<string, unknown>,
+  ctx: SkillContext
 ) => Promise<SkillResult>;
 
 const handlers = new Map<string, SkillHandler>();
@@ -84,7 +84,7 @@ export async function executeSkill(
   try {
     result = await ctx.db.transaction(async (_tx) => {
       console.info(`[DEBUG][SkillExecutor]   Inside transaction, calling handler ${qualifiedName}...`);
-      return await handler(ctx, call.params);
+      return await handler(call.params, ctx);
     });
 
     const elapsed = Date.now() - start;

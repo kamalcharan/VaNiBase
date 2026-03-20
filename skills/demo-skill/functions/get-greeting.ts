@@ -6,19 +6,19 @@
 import type { SkillContext, SkillResult } from '../../../shared/types/index.js';
 
 export async function getGreeting(
-  ctx: SkillContext,
-  params: Record<string, unknown>
+  params: Record<string, unknown>,
+  ctx: SkillContext
 ): Promise<SkillResult> {
   const name = (params.name as string) || 'there';
 
   // Query tenant name from the database
   let tenantName = 'Unknown Tenant';
   try {
-    const tenant = await ctx.db.queryOne<{ name: string }>(
+    const result = await ctx.db.queryOne<{ name: string }>(
       'SELECT name FROM vn_tenants WHERE id = :tenantId',
       { tenantId: ctx.tenantId }
     );
-    if (tenant) tenantName = tenant.name;
+    if (result.rows.length > 0) tenantName = result.rows[0].name;
   } catch {
     // DB may not be available in dev — use fallback
     tenantName = `Tenant ${ctx.tenantId.slice(0, 8)}`;

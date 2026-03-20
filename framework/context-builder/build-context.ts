@@ -37,6 +37,7 @@ export function buildSkillContext(
 
   return {
     tenantId: auth.tenant_id,
+    tenant_id: auth.tenant_id,
     userId: auth.sub,
     tier: auth.tier,
     db,

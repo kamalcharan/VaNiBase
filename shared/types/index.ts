@@ -59,6 +59,7 @@ export interface JWTPayload {
 
 export interface SkillContext {
   tenantId: string;              // From JWT, NEVER from LLM
+  tenant_id: string;             // Alias for tenantId — products use snake_case
   userId: string;                // Authenticated user
   tier: SubscriptionTier;
   db: TenantScopedDB;           // Pre-scoped database client
@@ -78,7 +79,7 @@ export interface TenantScopedDB {
   queryOne<T = Record<string, unknown>>(
     sql: string,
     params: Record<string, unknown>
-  ): Promise<T | null>;
+  ): Promise<{ rows: T[] }>;
   queryForUpdate<T = Record<string, unknown>>(
     sql: string,
     params: Record<string, unknown>

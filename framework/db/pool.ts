@@ -82,7 +82,7 @@ export function isPoolReady(): boolean {
 export function createStubDB(tenantId: string): TenantScopedDB {
   return {
     async query() { return { rows: [] }; },
-    async queryOne() { return null; },
+    async queryOne() { return { rows: [] }; },
     async queryForUpdate() { return []; },
     async execute() { return { rowCount: 0 }; },
     async transaction<T>(fn: (tx: TenantScopedDB) => Promise<T>): Promise<T> {
@@ -152,14 +152,15 @@ function buildDBFromClient(client: PoolClient, tenantId: string): TenantScopedDB
       return { rows: result.rows as T[] };
     },
 
-    async queryOne<T = Record<string, unknown>>(sql: string, params: Record<string, unknown>): Promise<T | null> {
+    async queryOne<T = Record<string, unknown>>(sql: string, params: Record<string, unknown>): Promise<{ rows: T[] }> {
       await setTenantCtx();
       const { text, values } = toPositional(sql, params);
       console.info(`[DEBUG][DB][tx] queryOne: ${text}`);
       console.info(`[DEBUG][DB][tx]   values: ${JSON.stringify(values)}`);
       const result = await client.query(text, values);
-      console.info(`[DEBUG][DB][tx]   → ${result.rows.length} row(s)${result.rows[0] ? ': ' + JSON.stringify(result.rows[0]) : ' (EMPTY — no rows matched!)'}`);
-      return (result.rows[0] as T) ?? null;
+      const rows = result.rows.length > 0 ? [result.rows[0] as T] : [];
+      console.info(`[DEBUG][DB][tx]   → ${rows.length} row(s)${rows[0] ? ': ' + JSON.stringify(rows[0]) : ' (EMPTY — no rows matched!)'}`);
+      return { rows };
     },
 
     async queryForUpdate<T = Record<string, unknown>>(sql: string, params: Record<string, unknown>): Promise<T[]> {
@@ -232,14 +233,15 @@ export function createTenantScopedDB(tenantId: string): TenantScopedDB {
       });
     },
 
-    async queryOne<T = Record<string, unknown>>(sql: string, params: Record<string, unknown>): Promise<T | null> {
+    async queryOne<T = Record<string, unknown>>(sql: string, params: Record<string, unknown>): Promise<{ rows: T[] }> {
       return withClient(async (client) => {
         const { text, values } = toPositional(sql, params);
         console.info(`[DEBUG][DB] queryOne: ${text}`);
         console.info(`[DEBUG][DB]   values: ${JSON.stringify(values)}`);
         const result = await client.query(text, values);
-        console.info(`[DEBUG][DB]   → ${result.rows.length} row(s)${result.rows[0] ? ': ' + JSON.stringify(result.rows[0]) : ' (EMPTY — no rows matched!)'}`);
-        return (result.rows[0] as T) ?? null;
+        const rows = result.rows.length > 0 ? [result.rows[0] as T] : [];
+        console.info(`[DEBUG][DB]   → ${rows.length} row(s)${rows[0] ? ': ' + JSON.stringify(rows[0]) : ' (EMPTY — no rows matched!)'}`);
+        return { rows };
       });
     },
 
