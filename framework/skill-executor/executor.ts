@@ -74,11 +74,16 @@ export async function executeSkill(
   }
 
   // 4. Execute inside a transaction
-  console.info(`[SkillExecutor] Executing ${qualifiedName} with tenant_id=${ctx.tenantId} user_id=${ctx.userId} tier=${ctx.tier} params=${JSON.stringify(call.params)}`);
+  console.info(`[DEBUG][SkillExecutor] === Executing ${qualifiedName} ===`);
+  console.info(`[DEBUG][SkillExecutor]   ctx.tenantId = "${ctx.tenantId}"`);
+  console.info(`[DEBUG][SkillExecutor]   ctx.userId   = "${ctx.userId}"`);
+  console.info(`[DEBUG][SkillExecutor]   ctx.tier     = "${ctx.tier}"`);
+  console.info(`[DEBUG][SkillExecutor]   call.params  = ${JSON.stringify(call.params)}`);
+  console.info(`[DEBUG][SkillExecutor]   Opening transaction → set_tenant_context("${ctx.tenantId}") will be called`);
   let result: SkillResult;
   try {
     result = await ctx.db.transaction(async (_tx) => {
-      // The handler uses ctx.db which is already within the transaction scope
+      console.info(`[DEBUG][SkillExecutor]   Inside transaction, calling handler ${qualifiedName}...`);
       return await handler(ctx, call.params);
     });
 
@@ -99,9 +104,11 @@ export async function executeSkill(
     const elapsed = Date.now() - start;
     const message = err instanceof Error ? err.message : String(err);
     const stack = err instanceof Error ? err.stack : '';
-    console.error(`[SkillExecutor] ${qualifiedName} threw after ${elapsed}ms: ${message}`);
-    console.error(`[SkillExecutor] Context: tenant_id=${ctx.tenantId} user_id=${ctx.userId}`);
-    if (stack) console.error(`[SkillExecutor] Stack: ${stack}`);
+    console.error(`[DEBUG][SkillExecutor] ${qualifiedName} THREW after ${elapsed}ms: ${message}`);
+    console.error(`[DEBUG][SkillExecutor]   ctx.tenantId = "${ctx.tenantId}"`);
+    console.error(`[DEBUG][SkillExecutor]   ctx.userId   = "${ctx.userId}"`);
+    console.error(`[DEBUG][SkillExecutor]   call.params  = ${JSON.stringify(call.params)}`);
+    if (stack) console.error(`[DEBUG][SkillExecutor]   Stack:\n${stack}`);
 
     // Prometheus metrics
     skillExecutionDuration.observe({ skill: call.skill, function: call.function, success: 'false' }, elapsed / 1000);

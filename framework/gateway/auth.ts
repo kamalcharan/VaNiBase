@@ -51,7 +51,10 @@ export function authMiddleware(req: Request, res: Response, next: NextFunction):
 
     if (tenantId) {
       const userId = (req.headers['x-dev-user-id'] as string) || 'dev-user';
-      console.info(`[Auth] Dev bypass: tenant_id=${tenantId} user_id=${userId} path=${req.method} ${req.originalUrl}`);
+      console.info(`[DEBUG][Auth] Dev bypass activated for ${req.method} ${req.originalUrl}`);
+      console.info(`[DEBUG][Auth]   X-Dev-Tenant-Id header: "${tenantId}"`);
+      console.info(`[DEBUG][Auth]   X-Dev-User-Id header: "${req.headers['x-dev-user-id'] || '(not set, defaulting to dev-user)'}"`);
+      console.info(`[DEBUG][Auth]   Setting req.auth = { sub: "${userId}", tenant_id: "${tenantId}", role: "owner", tier: "professional" }`);
       req.auth = {
         sub: userId,
         tenant_id: tenantId,

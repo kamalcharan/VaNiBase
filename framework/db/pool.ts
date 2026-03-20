@@ -145,14 +145,20 @@ function buildDBFromClient(client: PoolClient, tenantId: string): TenantScopedDB
     async query<T = Record<string, unknown>>(sql: string, params: Record<string, unknown>): Promise<T[]> {
       await setTenantCtx();
       const { text, values } = toPositional(sql, params);
+      console.info(`[DEBUG][DB][tx] query: ${text}`);
+      console.info(`[DEBUG][DB][tx]   values: ${JSON.stringify(values)}`);
       const result = await client.query(text, values);
+      console.info(`[DEBUG][DB][tx]   → ${result.rows.length} row(s) returned`);
       return result.rows as T[];
     },
 
     async queryOne<T = Record<string, unknown>>(sql: string, params: Record<string, unknown>): Promise<T | null> {
       await setTenantCtx();
       const { text, values } = toPositional(sql, params);
+      console.info(`[DEBUG][DB][tx] queryOne: ${text}`);
+      console.info(`[DEBUG][DB][tx]   values: ${JSON.stringify(values)}`);
       const result = await client.query(text, values);
+      console.info(`[DEBUG][DB][tx]   → ${result.rows.length} row(s)${result.rows[0] ? ': ' + JSON.stringify(result.rows[0]) : ' (EMPTY — no rows matched!)'}`);
       return (result.rows[0] as T) ?? null;
     },
 
@@ -160,14 +166,20 @@ function buildDBFromClient(client: PoolClient, tenantId: string): TenantScopedDB
       await setTenantCtx();
       const forUpdateSql = sql.trimEnd().replace(/;?\s*$/, '') + ' FOR UPDATE';
       const { text, values } = toPositional(forUpdateSql, params);
+      console.info(`[DEBUG][DB][tx] queryForUpdate: ${text}`);
+      console.info(`[DEBUG][DB][tx]   values: ${JSON.stringify(values)}`);
       const result = await client.query(text, values);
+      console.info(`[DEBUG][DB][tx]   → ${result.rows.length} row(s) returned`);
       return result.rows as T[];
     },
 
     async execute(sql: string, params: Record<string, unknown>): Promise<{ rowCount: number }> {
       await setTenantCtx();
       const { text, values } = toPositional(sql, params);
+      console.info(`[DEBUG][DB][tx] execute: ${text}`);
+      console.info(`[DEBUG][DB][tx]   values: ${JSON.stringify(values)}`);
       const result = await client.query(text, values);
+      console.info(`[DEBUG][DB][tx]   → rowCount: ${result.rowCount ?? 0}`);
       return { rowCount: result.rowCount ?? 0 };
     },
 
@@ -196,12 +208,12 @@ export function createTenantScopedDB(tenantId: string): TenantScopedDB {
   const withClient = async <T>(fn: (client: PoolClient) => Promise<T>): Promise<T> => {
     const client = await p.connect();
     try {
-      console.debug(`[DB] set_tenant_context(${tenantId})`);
+      console.info(`[DEBUG][DB] set_tenant_context("${tenantId}")`);
       await client.query('SELECT set_tenant_context($1)', [tenantId]);
       return await fn(client);
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
-      console.error(`[DB] Query failed for tenant=${tenantId}: ${msg}`);
+      console.error(`[DEBUG][DB] Query failed for tenant="${tenantId}": ${msg}`);
       throw err;
     } finally {
       client.release();
@@ -212,9 +224,10 @@ export function createTenantScopedDB(tenantId: string): TenantScopedDB {
     async query<T = Record<string, unknown>>(sql: string, params: Record<string, unknown>): Promise<T[]> {
       return withClient(async (client) => {
         const { text, values } = toPositional(sql, params);
-        console.debug(`[DB] query: ${text} values: ${JSON.stringify(values)}`);
+        console.info(`[DEBUG][DB] query: ${text}`);
+        console.info(`[DEBUG][DB]   values: ${JSON.stringify(values)}`);
         const result = await client.query(text, values);
-        console.debug(`[DB] query returned ${result.rows.length} row(s)`);
+        console.info(`[DEBUG][DB]   → ${result.rows.length} row(s) returned`);
         return result.rows as T[];
       });
     },
@@ -222,9 +235,10 @@ export function createTenantScopedDB(tenantId: string): TenantScopedDB {
     async queryOne<T = Record<string, unknown>>(sql: string, params: Record<string, unknown>): Promise<T | null> {
       return withClient(async (client) => {
         const { text, values } = toPositional(sql, params);
-        console.debug(`[DB] queryOne: ${text} values: ${JSON.stringify(values)}`);
+        console.info(`[DEBUG][DB] queryOne: ${text}`);
+        console.info(`[DEBUG][DB]   values: ${JSON.stringify(values)}`);
         const result = await client.query(text, values);
-        console.debug(`[DB] queryOne returned ${result.rows.length} row(s)${result.rows[0] ? ': ' + JSON.stringify(result.rows[0]) : ''}`);
+        console.info(`[DEBUG][DB]   → ${result.rows.length} row(s)${result.rows[0] ? ': ' + JSON.stringify(result.rows[0]) : ' (EMPTY — no rows matched!)'}`);
         return (result.rows[0] as T) ?? null;
       });
     },
@@ -249,15 +263,19 @@ export function createTenantScopedDB(tenantId: string): TenantScopedDB {
     async transaction<T>(fn: (tx: TenantScopedDB) => Promise<T>): Promise<T> {
       const client = await p.connect();
       try {
+        console.info(`[DEBUG][DB] Transaction BEGIN for tenant="${tenantId}"`);
         await client.query('SELECT set_tenant_context($1)', [tenantId]);
         await client.query('BEGIN');
         try {
           const tx = buildDBFromClient(client, tenantId);
           const result = await fn(tx);
           await client.query('COMMIT');
+          console.info(`[DEBUG][DB] Transaction COMMIT for tenant="${tenantId}"`);
           return result;
         } catch (err) {
           await client.query('ROLLBACK');
+          const msg = err instanceof Error ? err.message : String(err);
+          console.error(`[DEBUG][DB] Transaction ROLLBACK for tenant="${tenantId}": ${msg}`);
           throw err;
         }
       } finally {

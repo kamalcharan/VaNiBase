@@ -25,13 +25,21 @@ export function buildSkillContext(
   const auth = req.auth!;
   const body = req.body as ChatRequest;
 
-  console.info(`[ContextBuilder] tenant_id=${auth.tenant_id} user_id=${auth.sub} tier=${auth.tier} pool_ready=${isPoolReady()}`);
+  const poolReady = isPoolReady();
+  console.info(`[DEBUG][ContextBuilder] Building SkillContext from auth payload:`);
+  console.info(`[DEBUG][ContextBuilder]   tenant_id = "${auth.tenant_id}" (type: ${typeof auth.tenant_id})`);
+  console.info(`[DEBUG][ContextBuilder]   user_id   = "${auth.sub}" (type: ${typeof auth.sub})`);
+  console.info(`[DEBUG][ContextBuilder]   tier      = "${auth.tier}"`);
+  console.info(`[DEBUG][ContextBuilder]   pool_ready = ${poolReady} → using ${poolReady ? 'createTenantScopedDB' : 'createStubDB'}`);
+
+  const db = poolReady ? createTenantScopedDB(auth.tenant_id) : createStubDB(auth.tenant_id);
+  console.info(`[DEBUG][ContextBuilder] SkillContext built successfully. DB will call set_tenant_context("${auth.tenant_id}") on each query.`);
 
   return {
     tenantId: auth.tenant_id,
     userId: auth.sub,
     tier: auth.tier,
-    db: isPoolReady() ? createTenantScopedDB(auth.tenant_id) : createStubDB(auth.tenant_id),
+    db,
     memory: memoryStore,
     escalate: escalateFn,
     enqueue: async (jobType: string, payload: Record<string, unknown>) => {
