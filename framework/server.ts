@@ -35,17 +35,20 @@ import { boot } from './boot.js';
 async function main() {
   const config = loadConfig();
 
-  // --- Log masked DATABASE_URL so we can verify .env is loaded ---
-  if (config.databaseUrl) {
+  // --- Log DB connection mode ---
+  if (config.dbParams) {
+    console.info(`[VaNi] DB params: host=${config.dbParams.host} port=${config.dbParams.port} user=${config.dbParams.user} db=${config.dbParams.database}`);
+  } else if (config.databaseUrl) {
     const masked = config.databaseUrl.replace(/:([^@]+)@/, ':****@');
     console.info(`[VaNi] DATABASE_URL = ${masked}`);
   } else {
-    console.warn('[VaNi] DATABASE_URL is empty — running without Postgres');
+    console.warn('[VaNi] No DB config — running without Postgres');
   }
 
   // --- Initialize Infrastructure ---
-  if (config.databaseUrl) {
-    initPool(config.databaseUrl);
+  const hasDb = !!(config.dbParams || config.databaseUrl);
+  if (hasDb) {
+    initPool(config.databaseUrl, config.dbParams);
 
     // Startup DB connection test — log full error if it fails
     try {

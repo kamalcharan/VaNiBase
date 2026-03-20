@@ -12,27 +12,48 @@
 import pg from 'pg';
 import type { TenantScopedDB } from '../../shared/types/index.js';
 import { POOL_DEFAULTS, TABLES } from '../../shared/constants/index.js';
+import type { DbParamsConfig } from '../config.js';
 
 const { Pool } = pg;
 type PoolClient = pg.PoolClient;
 
 let pool: pg.Pool | null = null;
 
-export function initPool(databaseUrl: string): pg.Pool {
+/**
+ * Initialize the connection pool.
+ * Prefer individual DB params (avoids URL-encoding issues with special-char passwords).
+ * Falls back to DATABASE_URL connection string.
+ */
+export function initPool(databaseUrl: string, dbParams?: DbParamsConfig | null): pg.Pool {
   if (pool) return pool;
 
-  // pg v8 treats sslmode=require in the connection string as verify-full,
-  // which overrides our ssl config and rejects Supabase's self-signed certs.
-  // Strip sslmode from the URL so our explicit ssl config takes effect.
-  const cleanUrl = databaseUrl.replace(/[?&]sslmode=[^&]*/g, '').replace(/\?$/, '');
-
-  pool = new Pool({
-    connectionString: cleanUrl,
+  const sslConfig = { rejectUnauthorized: false };
+  const sharedOpts = {
     max: POOL_DEFAULTS.MAX_CONNECTIONS,
     idleTimeoutMillis: POOL_DEFAULTS.IDLE_TIMEOUT_MS,
     connectionTimeoutMillis: POOL_DEFAULTS.CONNECTION_TIMEOUT_MS,
-    ssl: { rejectUnauthorized: false },
-  });
+    ssl: sslConfig,
+  };
+
+  if (dbParams) {
+    // Individual params — password is passed as-is, no URL-encoding needed
+    pool = new Pool({
+      host: dbParams.host,
+      port: dbParams.port,
+      user: dbParams.user,
+      password: dbParams.password,
+      database: dbParams.database,
+      ...sharedOpts,
+    });
+    console.info(`[DB Pool] Using individual params (host=${dbParams.host}, port=${dbParams.port})`);
+  } else {
+    // Fallback: connection string
+    // pg v8 treats sslmode=require as verify-full, which rejects Supabase's
+    // self-signed certs. Strip it so our explicit ssl config takes effect.
+    const cleanUrl = databaseUrl.replace(/[?&]sslmode=[^&]*/g, '').replace(/\?$/, '');
+    pool = new Pool({ connectionString: cleanUrl, ...sharedOpts });
+    console.info('[DB Pool] Using connection string');
+  }
 
   pool.on('error', (err) => {
     console.error('[DB Pool] Unexpected error on idle client:', err.message);
