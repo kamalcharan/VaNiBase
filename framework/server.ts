@@ -24,7 +24,7 @@ import { healthRouter } from './routes/health.js';
 import { createChatRouter } from './routes/chat.js';
 import { createRecipesRouter } from './routes/recipes.js';
 import { jobsRouter } from './routes/jobs.js';
-import { createSkillsRouter } from './routes/skills.js';
+import { registerSkillsRoute } from './routes/skills.js';
 import { authMiddleware } from './gateway/auth.js';
 import { tenantContext } from './gateway/tenant-context.js';
 import { rateLimitMiddleware } from './middleware/rate-limiter.js';
@@ -111,7 +111,7 @@ async function main() {
   protectedRouter.use(tenantContext);
   protectedRouter.use(rateLimitMiddleware);
   protectedRouter.use(createChatRouter(orchestrator));
-  protectedRouter.use(createSkillsRouter(orchestrator));
+  registerSkillsRoute(protectedRouter, orchestrator);
   protectedRouter.use(jobsRouter);
   app.use('/api/v1', protectedRouter);
 

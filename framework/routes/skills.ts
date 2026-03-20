@@ -9,7 +9,7 @@
  * Returns the SkillResult (success, data, recipe, error).
  */
 
-import { Router } from 'express';
+import type { Router } from 'express';
 import type { Request, Response, NextFunction } from 'express';
 import type { Orchestrator } from '../orchestrator.js';
 import type { SkillCall } from '../../shared/types/index.js';
@@ -17,9 +17,11 @@ import { executeSkill } from '../skill-executor/executor.js';
 import { buildSkillContext } from '../context-builder/index.js';
 import { HTTP_STATUS } from '../../shared/constants/index.js';
 
-export function createSkillsRouter(orchestrator: Orchestrator): Router {
-  const router = Router();
-
+/**
+ * Register the direct skill execution route on the given router.
+ * Mounted on the protectedRouter so auth/tenant/rate-limit middleware apply.
+ */
+export function registerSkillsRoute(router: Router, orchestrator: Orchestrator): void {
   router.post('/skills/:skillName/:functionName', async (req: Request, res: Response, next: NextFunction) => {
     try {
       const { skillName, functionName } = req.params;
@@ -54,6 +56,4 @@ export function createSkillsRouter(orchestrator: Orchestrator): Router {
       next(err);
     }
   });
-
-  return router;
 }
