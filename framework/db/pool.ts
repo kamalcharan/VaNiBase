@@ -37,15 +37,18 @@ export function initPool(databaseUrl: string, dbParams?: DbParamsConfig | null):
 
   if (dbParams) {
     // Individual params — password is passed as-is, no URL-encoding needed
-    pool = new Pool({
+    const poolConfig = {
       host: dbParams.host,
       port: dbParams.port,
       user: dbParams.user,
       password: dbParams.password,
       database: dbParams.database,
       ...sharedOpts,
-    });
-    console.info(`[DB Pool] Using individual params (host=${dbParams.host}, port=${dbParams.port})`);
+    };
+    const pw = poolConfig.password || '';
+    const pwHint = pw.length > 2 ? `${pw[0]}..${pw[pw.length - 1]} (len=${pw.length})` : `(len=${pw.length})`;
+    console.info(`[DB Pool] user=${JSON.stringify(poolConfig.user)} password=${pwHint} host=${poolConfig.host} port=${poolConfig.port} db=${poolConfig.database}`);
+    pool = new Pool(poolConfig);
   } else {
     // Fallback: connection string
     // pg v8 treats sslmode=require as verify-full, which rejects Supabase's
