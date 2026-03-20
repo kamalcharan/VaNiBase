@@ -196,8 +196,13 @@ export function createTenantScopedDB(tenantId: string): TenantScopedDB {
   const withClient = async <T>(fn: (client: PoolClient) => Promise<T>): Promise<T> => {
     const client = await p.connect();
     try {
+      console.debug(`[DB] set_tenant_context(${tenantId})`);
       await client.query('SELECT set_tenant_context($1)', [tenantId]);
       return await fn(client);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      console.error(`[DB] Query failed for tenant=${tenantId}: ${msg}`);
+      throw err;
     } finally {
       client.release();
     }
@@ -207,7 +212,9 @@ export function createTenantScopedDB(tenantId: string): TenantScopedDB {
     async query<T = Record<string, unknown>>(sql: string, params: Record<string, unknown>): Promise<T[]> {
       return withClient(async (client) => {
         const { text, values } = toPositional(sql, params);
+        console.debug(`[DB] query: ${text} values: ${JSON.stringify(values)}`);
         const result = await client.query(text, values);
+        console.debug(`[DB] query returned ${result.rows.length} row(s)`);
         return result.rows as T[];
       });
     },
@@ -215,7 +222,9 @@ export function createTenantScopedDB(tenantId: string): TenantScopedDB {
     async queryOne<T = Record<string, unknown>>(sql: string, params: Record<string, unknown>): Promise<T | null> {
       return withClient(async (client) => {
         const { text, values } = toPositional(sql, params);
+        console.debug(`[DB] queryOne: ${text} values: ${JSON.stringify(values)}`);
         const result = await client.query(text, values);
+        console.debug(`[DB] queryOne returned ${result.rows.length} row(s)${result.rows[0] ? ': ' + JSON.stringify(result.rows[0]) : ''}`);
         return (result.rows[0] as T) ?? null;
       });
     },

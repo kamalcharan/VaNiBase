@@ -51,6 +51,7 @@ export function authMiddleware(req: Request, res: Response, next: NextFunction):
 
     if (tenantId) {
       const userId = (req.headers['x-dev-user-id'] as string) || 'dev-user';
+      console.info(`[Auth] Dev bypass: tenant_id=${tenantId} user_id=${userId} path=${req.method} ${req.originalUrl}`);
       req.auth = {
         sub: userId,
         tenant_id: tenantId,
