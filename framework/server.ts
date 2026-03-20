@@ -13,6 +13,7 @@ import express from 'express';
 import { loadConfig } from './config.js';
 import { healthRouter } from './routes/health.js';
 import { createChatRouter } from './routes/chat.js';
+import { createRecipesRouter } from './routes/recipes.js';
 import { authMiddleware } from './gateway/auth.js';
 import { tenantContext } from './gateway/tenant-context.js';
 import { errorHandler } from './middleware/error-handler.js';
@@ -31,6 +32,7 @@ app.use(requestLogger);
 
 // --- Public Routes (no auth) ---
 app.use(healthRouter);
+app.use('/api/v1', createRecipesRouter(orchestrator.recipeRegistry));
 
 // --- Protected Routes (auth required) ---
 const protectedRouter = express.Router();
