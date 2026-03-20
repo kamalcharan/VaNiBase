@@ -66,7 +66,7 @@ async function main() {
     try {
       const redis = initRedis(config.redisUrl);
       await Promise.race([
-        redis.ping(),
+        redis.connect().then(() => redis.ping()),
         new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 2000)),
       ]);
       initQueue();

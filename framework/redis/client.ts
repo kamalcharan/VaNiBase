@@ -11,11 +11,15 @@ export function initRedis(redisUrl: string): Redis {
 
   redis = new Redis(redisUrl, {
     maxRetriesPerRequest: null, // Required for BullMQ
-    lazyConnect: false,
+    lazyConnect: true,
+    retryStrategy(times) {
+      if (times > 3) return null; // Stop retrying after 3 attempts
+      return Math.min(times * 500, 2000);
+    },
   });
 
   redis.on('error', (err) => {
-    console.error('[Redis] Connection error:', err.message);
+    if (err.message) console.error('[Redis] Connection error:', err.message);
   });
 
   redis.on('connect', () => {
