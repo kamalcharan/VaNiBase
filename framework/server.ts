@@ -1,141 +1,148 @@
 /**
- * VaNi Product Framework — Express API Server
- * Phase 1 (F-08/F-16) + Scalability layer (S-01 through S-07)
- *
- * Startup:
- * 1. Load config
- * 2. Initialize infrastructure (DB pool, Redis, BullMQ)
- * 3. Create Orchestrator + boot skills/recipes
- * 4. Mount middleware pipeline
- * 5. Start listening
+ * KI-Prime — Product Entry Point
  */
 
-import dotenv from 'dotenv';
-import express from 'express';
-import cors from 'cors';
+import 'dotenv/config';
+import * as path from 'path';
+import config from './vani.config';
+import { buildRegistry, registerWithOrchestrator } from './shared/skill-registry';
 
-// --- Load .env before anything reads process.env ---
-dotenv.config();
-import { loadConfig } from './config.js';
-import { initPool } from './db/index.js';
-import { initRedis } from './redis/index.js';
-import { initQueue, startWorker } from './queue/index.js';
-import { healthRouter } from './routes/health.js';
-import { createChatRouter } from './routes/chat.js';
-import { createRecipesRouter } from './routes/recipes.js';
-import { jobsRouter } from './routes/jobs.js';
-import { registerSkillsRoute } from './routes/skills.js';
-import { authMiddleware } from './gateway/auth.js';
-import { tenantContext } from './gateway/tenant-context.js';
-import { rateLimitMiddleware } from './middleware/rate-limiter.js';
-import { errorHandler } from './middleware/error-handler.js';
-import { requestLogger } from './middleware/request-logger.js';
-import { metricsMiddleware, metricsRouter } from './middleware/metrics.js';
-import { Orchestrator } from './orchestrator.js';
-import { boot } from './boot.js';
+const PRODUCT_ROOT = __dirname;
+const SKILLS_DIR = path.resolve(PRODUCT_ROOT, process.env.SKILLS_DIR || 'skills');
+const RECIPES_DIR = path.resolve(PRODUCT_ROOT, process.env.RECIPES_DIR || 'recipes');
 
-async function main() {
-  const config = loadConfig();
+async function main(): Promise<void> {
+  console.log(`[KI-Prime] Product: ${config.product.name} v${config.product.version}`);
+  console.log(`[KI-Prime] Skills directory: ${SKILLS_DIR}`);
+  console.log(`[KI-Prime] Recipes directory: ${RECIPES_DIR}`);
 
-  // --- Log DB connection mode ---
-  if (config.dbParams) {
-    console.info(`[VaNi] DB params: host=${config.dbParams.host} port=${config.dbParams.port} user=${config.dbParams.user} db=${config.dbParams.database}`);
-  } else if (config.databaseUrl) {
-    const masked = config.databaseUrl.replace(/:([^@]+)@/, ':****@');
-    console.info(`[VaNi] DATABASE_URL = ${masked}`);
-  } else {
-    console.warn('[VaNi] No DB config — running without Postgres');
+  const registry = await buildRegistry(SKILLS_DIR);
+  const summary = registry.summary();
+  console.log(`[KI-Prime] Loaded ${summary.skills} skill(s), ${summary.handlers} handler(s)`);
+  for (const detail of summary.details) {
+    console.log(`  ${detail}`);
   }
 
-  // --- Initialize Infrastructure ---
-  const hasDb = !!(config.dbParams || config.databaseUrl);
-  if (hasDb) {
-    initPool(config.databaseUrl, config.dbParams);
+  try {
+    const { Orchestrator } = await import('./vani-base/framework/orchestrator');
+    const { registerHandler } = await import('./vani-base/framework/skill-executor/index');
+    const { boot } = await import('./vani-base/framework/boot');
+    const { loadConfig } = await import('./vani-base/framework/config');
+    const { initPool } = await import('./vani-base/framework/db/index');
+    const { healthRouter } = await import('./vani-base/framework/routes/health');
+    const { createChatRouter } = await import('./vani-base/framework/routes/chat');
+    const { createRecipesRouter } = await import('./vani-base/framework/routes/recipes');
+    const { jobsRouter } = await import('./vani-base/framework/routes/jobs');
+    const { registerSkillsRoute } = await import('./vani-base/framework/routes/skills');  // ← ADDED
+    const { authMiddleware } = await import('./vani-base/framework/gateway/auth');
+    const { tenantContext } = await import('./vani-base/framework/gateway/tenant-context');
+    const { rateLimitMiddleware } = await import('./vani-base/framework/middleware/rate-limiter');
+    const { errorHandler } = await import('./vani-base/framework/middleware/error-handler');
+    const { requestLogger } = await import('./vani-base/framework/middleware/request-logger');
+    const { metricsMiddleware, metricsRouter } = await import('./vani-base/framework/middleware/metrics');
+    const { initRedis } = await import('./vani-base/framework/redis/index');
+    const { initQueue, startWorker } = await import('./vani-base/framework/queue/index');
+    const express = (await import('express')).default;
+    const cors = (await import('cors')).default;
+    const { readFileSync } = await import('fs');
 
-    // Startup DB connection test — log full error if it fails
-    try {
-      const { getPool } = await import('./db/index.js');
-      const pool = getPool();
-      const result = await pool.query('SELECT 1 AS ok');
-      console.info(`[VaNi] DB startup check passed: ${JSON.stringify(result.rows[0])}`);
-    } catch (err) {
-      console.error('[VaNi] DB startup check FAILED:', err);
+    const fwConfig = loadConfig();
+    const port = Number(process.env.PORT) || fwConfig.port || 3001;
+
+    // --- Infrastructure ---
+    const hasDb = !!(fwConfig.dbParams || fwConfig.databaseUrl);
+    if (hasDb) {
+      initPool(fwConfig.databaseUrl, fwConfig.dbParams);
     }
-  }
 
-  // Redis + Queue: only init if a valid redis:// URL is provided and reachable
-  if (config.redisUrl && config.redisUrl.startsWith('redis://')) {
-    try {
-      const redis = initRedis(config.redisUrl);
-      await Promise.race([
-        redis.connect().then(() => redis.ping()),
-        new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 2000)),
-      ]);
-      initQueue();
-      startWorker();
-      console.info('[VaNi] Redis + Queue ready');
-    } catch (err) {
-      // Disconnect the failed Redis client to suppress reconnect spam
-      try { (await import('./redis/index.js')).closeRedis(); } catch { /* ignore */ }
-      console.warn('[VaNi] Redis/Queue unavailable — rate limiting and async jobs disabled:', (err as Error).message);
+    if (fwConfig.redisUrl && fwConfig.redisUrl.startsWith('redis://')) {
+      try {
+        const redis = initRedis(fwConfig.redisUrl);
+        await Promise.race([
+          redis.connect().then(() => redis.ping()),
+          new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 2000)),
+        ]);
+        initQueue();
+        startWorker();
+        console.log('[KI-Prime] Redis + Queue ready');
+      } catch (err) {
+        try { (await import('./vani-base/framework/redis/index')).closeRedis(); } catch { /* ignore */ }
+        console.warn('[KI-Prime] Redis unavailable:', (err as Error).message);
+      }
     }
+
+    // --- Orchestrator ---
+    const orchestrator = new Orchestrator({ systemPrompt: config.vani.systemPrompt });
+
+    await registerWithOrchestrator(registry, orchestrator, registerHandler);
+
+    // Load KI-Prime recipes
+    const recipesDir = RECIPES_DIR;
+    const { readdirSync } = await import('fs');
+    for (const file of readdirSync(recipesDir).filter((f: string) => f.endsWith('.json'))) {
+      try {
+        const recipe = JSON.parse(readFileSync(path.join(recipesDir, file), 'utf-8'));
+        orchestrator.recipeRegistry.register(recipe);
+      } catch (err) {
+        console.warn(`[KI-Prime] Failed to load recipe ${file}:`, (err as Error).message);
+      }
+    }
+
+    const skillCount = orchestrator.skillRegistry.skills.size;
+    const recipeCount = orchestrator.recipeRegistry.recipes.size;
+    console.log(`[KI-Prime] Orchestrator ready — ${skillCount} skill(s), ${recipeCount} recipe(s)`);
+
+    // --- Express Server ---
+    const app = express();
+
+    app.use(cors({
+      origin: process.env.CORS_ORIGIN || 'http://localhost:3000',
+      methods: ['GET', 'POST', 'PUT', 'DELETE'],
+      allowedHeaders: ['Content-Type', 'Authorization', 'X-Dev-Tenant-Id', 'X-Dev-User-Id'],
+    }));
+    app.use(express.json());
+    app.use(metricsMiddleware);
+    app.use(requestLogger);
+
+    // Public routes
+    app.use(healthRouter);
+    app.use(metricsRouter);
+    app.use('/api/v1', createRecipesRouter(orchestrator.recipeRegistry));
+
+    // Protected routes
+    const protectedRouter = express.Router();
+    protectedRouter.use(authMiddleware);
+    protectedRouter.use(tenantContext);
+    protectedRouter.use(rateLimitMiddleware);
+    protectedRouter.use('/chat', createChatRouter(orchestrator));  // ← CHANGED: added '/chat' path
+    registerSkillsRoute(protectedRouter, orchestrator);             // ← ADDED: skills route
+    protectedRouter.use(jobsRouter);
+    app.use('/api/v1', protectedRouter);
+
+    app.use(errorHandler);
+
+    const server = app.listen(port, () => {
+      console.log(`[KI-Prime] Server running on port ${port}`);
+      console.log(`[KI-Prime] Health:  http://localhost:${port}/health`);
+      console.log(`[KI-Prime] Chat:    POST http://localhost:${port}/api/v1/chat`);
+      console.log(`[KI-Prime] Skills:  POST http://localhost:${port}/api/v1/skills/:skill/:function`);
+    });
+
+    const shutdown = () => {
+      console.log('\n[KI-Prime] Shutting down...');
+      server.close(() => process.exit(0));
+    };
+    process.on('SIGINT', shutdown);
+    process.on('SIGTERM', shutdown);
+
+  } catch (err) {
+    console.warn('[KI-Prime] VaNiBase framework not available:', (err as Error).message);
+    console.log('[KI-Prime] Running in standalone skill registry mode (no server)');
+    (globalThis as Record<string, unknown>).__kiPrimeRegistry = registry;
   }
-
-  // --- Express App ---
-  const app = express();
-
-  // --- Orchestrator (owns all framework layers) ---
-  const orchestrator = new Orchestrator();
-
-  // --- Boot: register skills, recipes, job handlers ---
-  boot(orchestrator);
-
-  // --- Core Middleware ---
-  app.use(cors({
-    origin: 'http://localhost:3000',
-    methods: ['GET', 'POST', 'PUT', 'DELETE'],
-    allowedHeaders: ['Content-Type', 'Authorization', 'X-Dev-Tenant-Id', 'X-Dev-User-Id'],
-  }));
-  app.use(express.json());
-  app.use(metricsMiddleware);
-  app.use(requestLogger);
-
-  // --- Public Routes (no auth) ---
-  app.use(healthRouter);
-  app.use(metricsRouter);
-  app.use('/api/v1', createRecipesRouter(orchestrator.recipeRegistry));
-
-  // --- Protected Routes (auth required) ---
-  const protectedRouter = express.Router();
-  protectedRouter.use(authMiddleware);
-  protectedRouter.use(tenantContext);
-  protectedRouter.use(rateLimitMiddleware);
-  protectedRouter.use('/chat', createChatRouter(orchestrator));
-  registerSkillsRoute(protectedRouter, orchestrator);
-  protectedRouter.use(jobsRouter);
-  app.use('/api/v1', protectedRouter);
-
-  // --- Error Handler (must be last) ---
-  app.use(errorHandler);
-
-  app.listen(config.port, () => {
-    console.info(`[VaNi] Framework server running on port ${config.port} (${config.nodeEnv})`);
-    console.info(`[VaNi] Health:   http://localhost:${config.port}/health`);
-    console.info(`[VaNi] Ready:    http://localhost:${config.port}/health/ready`);
-    console.info(`[VaNi] Metrics:  http://localhost:${config.port}/metrics`);
-    console.info(`[VaNi] Chat:     POST http://localhost:${config.port}/api/v1/chat`);
-    console.info(`[VaNi] Skills:   POST http://localhost:${config.port}/api/v1/skills/:skill/:function`);
-  });
-
-  return { app, orchestrator };
 }
 
-let app: ReturnType<typeof express>;
-let orchestrator: Orchestrator;
-
-main().then((result) => {
-  app = result.app;
-  orchestrator = result.orchestrator;
+main().catch((err) => {
+  console.error('[KI-Prime] Failed to start:', err);
+  process.exit(1);
 });
-
-export { app, orchestrator };
