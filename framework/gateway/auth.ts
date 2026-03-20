@@ -45,17 +45,17 @@ function decodeJwtPayload(token: string): JWTPayload | null {
 export function authMiddleware(req: Request, res: Response, next: NextFunction): void {
   const config = loadConfig();
 
-  // --- Dev bypass: when no JWT_SECRET is configured, accept dev headers ---
-  if (!config.jwtSecret && config.nodeEnv === 'development') {
+  // --- Dev bypass: in development mode, accept dev headers instead of JWT ---
+  if (config.nodeEnv === 'development') {
     const tenantId = req.headers['x-dev-tenant-id'] as string | undefined;
-    const userId = req.headers['x-dev-user-id'] as string | undefined;
 
-    if (tenantId && userId) {
+    if (tenantId) {
+      const userId = (req.headers['x-dev-user-id'] as string) || 'dev-user';
       req.auth = {
         sub: userId,
         tenant_id: tenantId,
-        role: (req.headers['x-dev-role'] as string) || 'admin',
-        tier: 'enterprise',
+        role: 'owner',
+        tier: 'professional',
         email: 'dev@vani.local',
         iat: Math.floor(Date.now() / 1000),
         exp: Math.floor(Date.now() / 1000) + 3600,
