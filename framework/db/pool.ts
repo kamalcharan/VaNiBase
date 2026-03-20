@@ -263,9 +263,10 @@ export function createTenantScopedDB(tenantId: string): TenantScopedDB {
     async transaction<T>(fn: (tx: TenantScopedDB) => Promise<T>): Promise<T> {
       const client = await p.connect();
       try {
+        await client.query('BEGIN');
         console.info(`[DEBUG][DB] Transaction BEGIN for tenant="${tenantId}"`);
         await client.query('SELECT set_tenant_context($1)', [tenantId]);
-        await client.query('BEGIN');
+        console.info(`[DEBUG][DB] set_tenant_context("${tenantId}") called INSIDE transaction`);
         try {
           const tx = buildDBFromClient(client, tenantId);
           const result = await fn(tx);
