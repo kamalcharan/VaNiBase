@@ -1,22 +1,29 @@
 'use client';
 
+import Link from 'next/link';
 import { useTheme, THEMES, type ThemeName } from './theme-provider';
 
 interface SidebarProps {
+  productName?: string;
+  productTagline?: string;
   recipes: { name: string; title: string }[];
   activeRecipe?: string;
-  onSelectRecipe: (name: string) => void;
 }
 
-export default function Sidebar({ recipes, activeRecipe, onSelectRecipe }: SidebarProps) {
+export default function Sidebar({
+  productName = 'VaNi',
+  productTagline = 'Product Framework',
+  recipes,
+  activeRecipe,
+}: SidebarProps) {
   const { theme, setTheme } = useTheme();
 
   return (
     <aside className="fixed left-0 top-0 bottom-0 w-64 bg-surface border-r border-border flex flex-col z-20">
       {/* Brand */}
       <div className="p-4 border-b border-border">
-        <h1 className="text-lg font-bold text-primary">VaNi</h1>
-        <p className="text-xs text-muted">Product Framework</p>
+        <h1 className="text-lg font-bold text-primary">{productName}</h1>
+        <p className="text-xs text-muted">{productTagline}</p>
       </div>
 
       {/* Recipe Navigation */}
@@ -28,17 +35,17 @@ export default function Sidebar({ recipes, activeRecipe, onSelectRecipe }: Sideb
           <p className="px-2 py-2 text-sm text-muted italic">No recipes loaded</p>
         )}
         {recipes.map((r) => (
-          <button
+          <Link
             key={r.name}
-            onClick={() => onSelectRecipe(r.name)}
-            className={`w-full text-left px-3 py-2 rounded-md text-sm transition-colors ${
+            href={r.name}
+            className={`block w-full text-left px-3 py-2 rounded-md text-sm transition-colors ${
               activeRecipe === r.name
                 ? 'bg-primary text-primary-fg'
                 : 'hover:bg-surface-hover text-foreground'
             }`}
           >
             {r.title}
-          </button>
+          </Link>
         ))}
       </nav>
 

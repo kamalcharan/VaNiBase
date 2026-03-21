@@ -1,38 +1,40 @@
 'use client';
 
-import { useState, useEffect, type ReactNode } from 'react';
+import { useMemo, type ReactNode } from 'react';
+import { usePathname } from 'next/navigation';
 import { ThemeProvider } from './theme-provider';
+import { useShellConfig } from '../lib/shell-config';
 import Sidebar from './sidebar';
 import Header from './header';
 
 export function ShellLayout({ children }: { children: ReactNode }) {
-  const [recipes, setRecipes] = useState<{ name: string; title: string }[]>([]);
-  const [activeRecipe, setActiveRecipe] = useState<string>();
+  const { product, recipes } = useShellConfig();
+  const pathname = usePathname();
 
-  useEffect(() => {
-    const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
-    fetch(`${apiUrl}/api/v1/recipes`)
-      .then((r) => (r.ok ? r.json() : []))
-      .then((data) => {
-        if (Array.isArray(data)) {
-          setRecipes(data);
-          if (data.length > 0 && !activeRecipe) {
-            setActiveRecipe(data[0].name);
-          }
-        }
-      })
-      .catch(() => {
-        /* API not available — sidebar shows empty state */
-      });
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  // Build sidebar items from config recipes
+  const sidebarRecipes = useMemo(
+    () => recipes.map((r) => ({ name: r.route, title: r.label })),
+    [recipes],
+  );
+
+  // Determine active recipe from current pathname
+  const activeRecipe = useMemo(() => {
+    // Exact match first
+    const exact = recipes.find((r) => r.route === pathname);
+    if (exact) return exact.route;
+    // Fallback: check if pathname starts with a recipe route
+    const match = recipes.find((r) => pathname.startsWith(r.route + '/'));
+    return match?.route;
+  }, [recipes, pathname]);
 
   return (
     <ThemeProvider>
       <div className="flex min-h-screen">
         <Sidebar
-          recipes={recipes}
+          productName={product.name}
+          productTagline={product.tagline}
+          recipes={sidebarRecipes}
           activeRecipe={activeRecipe}
-          onSelectRecipe={setActiveRecipe}
         />
         <div className="flex-1 ml-64 flex flex-col">
           <Header />
