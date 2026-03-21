@@ -45,8 +45,9 @@ export interface ShellConfig {
   auth?: {
     /** Dev JWT token for local development */
     devToken?: string;
+    customHeaders?: Record<string, string>; 
     /** Header name, defaults to "Authorization" */
-    headerName?: string;
+    /** headerName?: string; */
   };
   recipes: RecipeConfig[];
 }

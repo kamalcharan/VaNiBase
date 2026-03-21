@@ -48,6 +48,9 @@ export function buildAuthHeaders(config: ShellConfig): Record<string, string> {
     const headerName = config.auth.headerName ?? 'Authorization';
     headers[headerName] = config.auth.devToken;
   }
+  if (config.auth?.customHeaders) {           // ← add
+    Object.assign(headers, config.auth.customHeaders);  // ← add
+  }         
   return headers;
 }
 
