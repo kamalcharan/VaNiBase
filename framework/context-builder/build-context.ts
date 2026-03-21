@@ -36,7 +36,7 @@ export function buildSkillContext(
   console.info(`[DEBUG][ContextBuilder] SkillContext built successfully. DB will call set_tenant_context("${auth.tenant_id}") on each query.`);
 
   return {
-    tenantId: auth.tenant_id,
+tenant_id: auth.tenant_id,
     userId: auth.sub,
     tier: auth.tier,
     db,
@@ -44,9 +44,9 @@ export function buildSkillContext(
     escalate: escalateFn,
     enqueue: async (jobType: string, payload: Record<string, unknown>) => {
       try {
-        return await enqueueJob(jobType, {
+        return await enqueueJob(jobType, {  
           ...payload,
-          _tenantId: auth.tenant_id,
+          _tenant_id: auth.tenant_id,
           _userId: auth.sub,
         });
       } catch {
