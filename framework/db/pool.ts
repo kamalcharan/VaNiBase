@@ -126,7 +126,7 @@ function toPositional(
   let idx = 0;
   const text = sql.replace(/(?::|\$)(\w+)/g, (_match, name) => {
     idx++;
-    values.push(params[name]);
+    values.push(params[name] ?? params[`$${name}`] ?? params[`:${name}`]);
     return `$${idx}`;
   });
   return { text, values };
