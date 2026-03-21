@@ -14,8 +14,8 @@ import { TIER_LEVELS, ERROR_CODES, TABLES } from '../../shared/constants/index.j
 import { skillExecutionDuration, skillExecutionTotal, skillErrorTotal } from '../middleware/metrics.js';
 
 export type SkillHandler = (
-  ctx: SkillContext,
-  params: Record<string, unknown>
+  params: Record<string, unknown>,
+  ctx: SkillContext
 ) => Promise<SkillResult>;
 
 const handlers = new Map<string, SkillHandler>();
@@ -74,21 +74,18 @@ export async function executeSkill(
   }
 
   // 4. Execute inside a transaction
-  console.info(`[DEBUG][SkillExecutor] === Executing ${qualifiedName} ===`);
-  console.info(`[DEBUG][SkillExecutor]   ctx.tenantId = "${ctx.tenantId}"`);
-  console.info(`[DEBUG][SkillExecutor]   ctx.userId   = "${ctx.userId}"`);
-  console.info(`[DEBUG][SkillExecutor]   ctx.tier     = "${ctx.tier}"`);
-  console.info(`[DEBUG][SkillExecutor]   call.params  = ${JSON.stringify(call.params)}`);
-  console.info(`[DEBUG][SkillExecutor]   Opening transaction → set_tenant_context("${ctx.tenantId}") will be called`);
   let result: SkillResult;
   try {
     result = await ctx.db.transaction(async (_tx) => {
-      console.info(`[DEBUG][SkillExecutor]   Inside transaction, calling handler ${qualifiedName}...`);
-      return await handler(call.params, ctx);
+      const handlerResult = await handler(call.params, ctx);
+      // Ensure success is always a boolean — guards against product skills that omit it
+      if (handlerResult.success === undefined) {
+        handlerResult.success = true;
+      }
+      return handlerResult;
     });
 
     const elapsed = Date.now() - start;
-    console.info(`[SkillExecutor] ${qualifiedName} → ok (${elapsed}ms)`);
 
     // Prometheus metrics
     skillExecutionDuration.observe({ skill: call.skill, function: call.function, success: 'true' }, elapsed / 1000);
@@ -103,12 +100,6 @@ export async function executeSkill(
   } catch (err) {
     const elapsed = Date.now() - start;
     const message = err instanceof Error ? err.message : String(err);
-    const stack = err instanceof Error ? err.stack : '';
-    console.error(`[DEBUG][SkillExecutor] ${qualifiedName} THREW after ${elapsed}ms: ${message}`);
-    console.error(`[DEBUG][SkillExecutor]   ctx.tenantId = "${ctx.tenantId}"`);
-    console.error(`[DEBUG][SkillExecutor]   ctx.userId   = "${ctx.userId}"`);
-    console.error(`[DEBUG][SkillExecutor]   call.params  = ${JSON.stringify(call.params)}`);
-    if (stack) console.error(`[DEBUG][SkillExecutor]   Stack:\n${stack}`);
 
     // Prometheus metrics
     skillExecutionDuration.observe({ skill: call.skill, function: call.function, success: 'false' }, elapsed / 1000);
