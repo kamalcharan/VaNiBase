@@ -124,7 +124,7 @@ function toPositional(
 ): { text: string; values: unknown[] } {
   const values: unknown[] = [];
   let idx = 0;
-  const text = sql.replace(/:(\w+)/g, (_match, name) => {
+  const text = sql.replace(/:([a-zA-Z_][a-zA-Z0-9_]*)/g, (_match, name) => {
     idx++;
     values.push(params[name]);
     return `$${idx}`;
