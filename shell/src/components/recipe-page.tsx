@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useShellConfig, type RecipeConfig } from '../lib/shell-config';
 import { fetchRecipeData, buildAuthHeaders } from '../lib/skill-fetcher';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import RecipeRenderer from './recipe-renderer';
 
 interface RecipeSlot {
@@ -40,8 +41,8 @@ export default function RecipePage({ route }: RecipePageProps) {
     (r) => r.route === route,
   );
 
-  const apiUrl = config.apiUrl || process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
-  const authHeaders = buildAuthHeaders(config);
+ const apiUrl = config.apiUrl || process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
+const authHeaders = useMemo(() => buildAuthHeaders(config), [config]);
 
   const loadData = useCallback(async () => {
     if (!recipeConfig) {
