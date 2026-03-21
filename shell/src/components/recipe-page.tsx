@@ -1,9 +1,8 @@
 'use client';
 
-
+import { useState, useEffect } from 'react';
 import { useShellConfig, type RecipeConfig } from '../lib/shell-config';
 import { fetchRecipeData, buildAuthHeaders } from '../lib/skill-fetcher';
-import { useState, useEffect, useCallback, useMemo } from 'react';
 import RecipeRenderer from './recipe-renderer';
 
 interface RecipeSlot {
@@ -25,7 +24,6 @@ interface Recipe {
 }
 
 interface RecipePageProps {
-  /** The route path used to look up the matching RecipeConfig */
   route: string;
 }
 
@@ -36,60 +34,57 @@ export default function RecipePage({ route }: RecipePageProps) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string>();
 
-  // Find the recipe config for this route
-  const recipeConfig: RecipeConfig | undefined = config.recipes.find(
-    (r) => r.route === route,
-  );
+  useEffect(() => {
+    const recipeConfig: RecipeConfig | undefined = config.recipes.find(
+      (r) => r.route === route,
+    );
 
- const apiUrl = config.apiUrl || process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
-const authHeaders = useMemo(() => buildAuthHeaders(config), [config]);
-
-  const loadData = useCallback(async () => {
     if (!recipeConfig) {
       setError(`No recipe config found for route: ${route}`);
       setLoading(false);
       return;
     }
 
-    try {
-      setLoading(true);
-      setError(undefined);
+    let cancelled = false;
+    const headers = buildAuthHeaders(config);
+    const apiUrl = config.apiUrl || process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
 
-      // 1. Fetch recipe definition from framework API
-      const recipeRes = await fetch(`${apiUrl}/api/v1/recipes/${recipeConfig.recipe}`, {
-        headers: authHeaders,
-      });
-      if (!recipeRes.ok) {
-        throw new Error(`Failed to fetch recipe definition: ${recipeConfig.recipe}`);
-      }
-      const recipeDef: Recipe = await recipeRes.json();
-      setRecipe(recipeDef);
+    async function load() {
+      try {
+        setLoading(true);
+        setError(undefined);
 
-      // 2. Fetch data from skill endpoints
-      if (recipeConfig.skills.length > 0) {
-        const skillData = await fetchRecipeData(recipeConfig.skills, apiUrl, authHeaders);
-        setData(skillData);
-      } else {
-        setData({});
+        const recipeRes = await fetch(`${apiUrl}/api/v1/recipes/${recipeConfig.recipe}`, {
+          headers,
+        });
+        if (!recipeRes.ok) {
+          throw new Error(`Failed to fetch recipe definition: ${recipeConfig.recipe}`);
+        }
+        const recipeDef: Recipe = await recipeRes.json();
+
+        let skillData: Record<string, unknown> = {};
+        if (recipeConfig.skills.length > 0) {
+          skillData = await fetchRecipeData(recipeConfig.skills, apiUrl, headers);
+        }
+
+        if (!cancelled) {
+          setRecipe(recipeDef);
+          setData(skillData);
+        }
+      } catch (err) {
+        if (!cancelled) {
+          setError((err as Error).message);
+        }
+      } finally {
+        if (!cancelled) {
+          setLoading(false);
+        }
       }
-    } catch (err) {
-      setError((err as Error).message);
-    } finally {
-      setLoading(false);
     }
-  }, [recipeConfig, apiUrl, authHeaders, route]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Initial load
-  useEffect(() => {
-    loadData();
+    load();
+    return () => { cancelled = true; };
   }, [route]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  // Auto-refresh
-  useEffect(() => {
-    if (!recipeConfig?.refreshInterval) return;
-    const interval = setInterval(loadData, recipeConfig.refreshInterval * 1000);
-    return () => clearInterval(interval);
-  }, [recipeConfig?.refreshInterval, loadData]);
 
   return <RecipeRenderer recipe={recipe} data={data} loading={loading} error={error} />;
 }
