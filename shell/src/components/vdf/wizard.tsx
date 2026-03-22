@@ -39,6 +39,14 @@ export default function Wizard({ data }: Props) {
   }
 
   const current = data.steps[step];
+  if (!current) {
+    return (
+      <div className="rounded-lg border border-border bg-surface p-4">
+        <span className="text-muted text-sm">No wizard data</span>
+      </div>
+    );
+  }
+
   const isLast = step === data.steps.length - 1;
 
   const updateField = (key: string, value: unknown) => {
@@ -61,7 +69,7 @@ export default function Wizard({ data }: Props) {
       {current.description && <p className="text-sm text-muted mb-4">{current.description}</p>}
 
       <div className="space-y-4">
-        {current.fields.map((f) => (
+        {(current.fields ?? []).map((f) => (
           <div key={f.key} className="flex flex-col gap-1.5">
             <label className="text-sm font-medium text-foreground">
               {f.label}

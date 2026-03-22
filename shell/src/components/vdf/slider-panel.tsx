@@ -14,11 +14,28 @@ interface SliderPanelData {
 }
 
 interface Props {
-  data: SliderPanelData | null | undefined;
+  data: SliderPanelData | number | null | undefined;
   variant?: string;
+  label?: string;
+  min?: number;
+  max?: number;
 }
 
-export default function SliderPanel({ data }: Props) {
+export default function SliderPanel({ data: rawData, label: propLabel, min: propMin, max: propMax }: Props) {
+  // Normalize: accept raw number as the current value
+  const data: SliderPanelData | null =
+    rawData == null
+      ? null
+      : typeof rawData === 'number'
+        ? {
+            label: propLabel || 'Value',
+            min: propMin ?? 0,
+            max: propMax ?? Math.max(100, rawData * 2),
+            current: rawData,
+            onChange: '',
+          }
+        : rawData;
+
   const [value, setValue] = useState(data?.current ?? 0);
 
   if (!data) {
@@ -30,7 +47,8 @@ export default function SliderPanel({ data }: Props) {
     );
   }
 
-  const pct = ((value - data.min) / (data.max - data.min)) * 100;
+  const range = data.max - data.min;
+  const pct = range > 0 ? ((value - data.min) / range) * 100 : 0;
 
   return (
     <div className="rounded-lg border border-border bg-surface p-4">

@@ -7,11 +7,20 @@ interface SuggestionData {
 }
 
 interface Props {
-  data: SuggestionData | null | undefined;
+  data: SuggestionData | string | null | undefined;
   variant?: string;
+  confidence?: number;
 }
 
-export default function Suggestion({ data }: Props) {
+export default function Suggestion({ data: rawData, confidence: propConfidence }: Props) {
+  // Normalize: accept raw string as suggestion text
+  const data: SuggestionData | null =
+    rawData == null
+      ? null
+      : typeof rawData === 'string'
+        ? { text: rawData, confidence: propConfidence ?? 0.5 }
+        : rawData;
+
   if (!data) {
     return (
       <div className="rounded-lg border border-border bg-surface p-3 animate-pulse">
@@ -20,7 +29,7 @@ export default function Suggestion({ data }: Props) {
     );
   }
 
-  const pct = Math.round(data.confidence * 100);
+  const pct = Math.round((data.confidence ?? 0) * 100);
   const barColor = pct >= 70 ? 'bg-success' : pct >= 40 ? 'bg-warning' : 'bg-danger';
 
   return (

@@ -9,7 +9,7 @@ interface InsightCardData {
 }
 
 interface Props {
-  data: InsightCardData | null | undefined;
+  data: InsightCardData | Record<string, unknown> | string | null | undefined;
   variant?: string;
 }
 
@@ -20,7 +20,39 @@ const SEVERITY_STYLES: Record<string, { border: string; bg: string; dot: string 
   info: { border: 'border-muted/40', bg: 'bg-surface', dot: 'bg-muted' },
 };
 
-export default function InsightCard({ data }: Props) {
+/** Normalize any incoming data shape to InsightCardData */
+function normalizeData(data: NonNullable<Props['data']>): InsightCardData | null {
+  // Raw string — wrap as a simple info insight
+  if (typeof data === 'string') {
+    return { title: 'Insight', body: data, severity: 'info' };
+  }
+
+  // Already in expected shape
+  if ('title' in data && 'body' in data) {
+    return {
+      title: String(data.title ?? ''),
+      body: String(data.body ?? ''),
+      severity: (data.severity as InsightCardData['severity']) ?? 'info',
+      action: data.action as InsightCardData['action'],
+      timestamp: data.timestamp as string,
+    };
+  }
+
+  // Generic object — try to extract something meaningful
+  const title = (data.title ?? data.name ?? data.heading ?? '') as string;
+  const body = (data.body ?? data.description ?? data.message ?? data.text ?? '') as string;
+  if (!title && !body) return null;
+
+  return {
+    title: String(title || 'Insight'),
+    body: String(body),
+    severity: (data.severity as InsightCardData['severity']) ?? 'info',
+  };
+}
+
+export default function InsightCard({ data: rawData }: Props) {
+  const data = rawData != null ? normalizeData(rawData) : null;
+
   if (!data) {
     return (
       <div className="rounded-lg border border-border bg-surface p-4 animate-pulse">
