@@ -51,16 +51,56 @@ function isKPICardData(obj: Record<string, unknown>): boolean {
  * Auto-convert a flat object like { total_value: 131433 } into KPICardData.
  * Picks the first numeric value as the KPI value, uses the key as label.
  */
-function autoDetectKPI(obj: Record<string, unknown>): KPICardData {
-  // Find the first numeric key
-  for (const [key, val] of Object.entries(obj)) {
-    if (typeof val === 'number') {
-      return { label: keyToLabel(key), value: val };
+/**
+ * Auto-convert a raw object into KPICardData.
+ * Uses heuristics: prefers 'name'/'label' for label, 
+ * prefers meaningful numeric keys over 'id'.
+ */
+function autoDetectKPI(obj: Record<string, unknown>, variant?: Variant): KPICardData {
+  // Try to find a good label: name > label > title > first string
+  const labelKey = ['name', 'label', 'title', 'scheme_name', 'category'].find(k => typeof obj[k] === 'string');
+  const label = labelKey ? String(obj[labelKey]) : '';
+
+  // For goal-progress variant, prefer probability
+  if (variant === 'goal-progress') {
+    const prob = obj['probability'] ?? obj['progress'] ?? obj['completion'];
+    if (typeof prob === 'number') {
+      return {
+        label: label || 'Goal',
+        value: Math.round(prob * 100),
+        suffix: '%',
+        status: prob >= 0.7 ? 'success' : prob >= 0.4 ? 'warning' : 'danger',
+      };
     }
   }
-  // Fallback: first key with any value
-  const [key, val] = Object.entries(obj)[0] ?? ['', ''];
-  return { label: keyToLabel(String(key)), value: String(val ?? '') };
+
+  // For currency variant, prefer amount/value keys
+  if (variant === 'currency') {
+    const amountKey = ['total_value', 'current_value', 'value', 'amount', 'target_amount', 'aum', 'current_corpus'].find(k => typeof obj[k] === 'number');
+    if (amountKey) {
+      return { label: label || keyToLabel(amountKey), value: obj[amountKey] as number };
+    }
+  }
+
+  // For percentage variant
+  if (variant === 'percentage') {
+    const pctKey = ['return_pct', 'percentage', 'rate', 'xirr_pct', 'probability'].find(k => typeof obj[k] === 'number');
+    if (pctKey) {
+      return { label: label || keyToLabel(pctKey), value: obj[pctKey] as number };
+    }
+  }
+
+  // Default: pick first meaningful numeric key (skip 'id')
+  const skipKeys = new Set(['id', 'client_id', 'tenant_id', 'user_id']);
+  for (const [key, val] of Object.entries(obj)) {
+    if (typeof val === 'number' && !skipKeys.has(key)) {
+      return { label: label || keyToLabel(key), value: val };
+    }
+  }
+
+  // Fallback
+  const [key, val] = Object.entries(obj).find(([k]) => !skipKeys.has(k)) ?? ['', ''];
+  return { label: label || keyToLabel(String(key)), value: String(val ?? '') };
 }
 
 export default function KpiCard({ data, variant = 'default', label: propLabel, status: propStatus, prefix: propPrefix, suffix: propSuffix }: Props) {
@@ -84,7 +124,7 @@ export default function KpiCard({ data, variant = 'default', label: propLabel, s
     card = { ...d, label: d.label || propLabel || '', status: d.status || propStatus };
   } else {
     // Raw flat object — auto-detect
-    card = { ...autoDetectKPI(data as Record<string, unknown>), status: propStatus };
+card = { ...autoDetectKPI(data as Record<string, unknown>, variant), status: propStatus };
     if (propLabel) card.label = propLabel;
   }
 
