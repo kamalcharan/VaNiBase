@@ -1,4 +1,4 @@
-import type { SkillEndpoint, ShellConfig } from './shell-config';
+import type { SkillEndpoint, ShellConfig } from './shell-config-types';
 
 /**
  * Resolves a dot-notation path from an object.

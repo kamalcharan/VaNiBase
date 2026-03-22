@@ -13,7 +13,7 @@ interface KPICardData {
 type Variant = 'default' | 'goal-progress' | 'currency' | 'percentage';
 
 interface Props {
-  data: KPICardData | string | number | null | undefined;
+  data: KPICardData | Record<string, unknown> | string | number | null | undefined;
   variant?: Variant;
   label?: string;
   status?: KPICardData['status'];
@@ -34,6 +34,35 @@ const TREND_ICONS: Record<string, string> = {
   flat: '\u25C6',
 };
 
+/** Convert snake_case or camelCase key to a human-readable label */
+function keyToLabel(key: string): string {
+  return key
+    .replace(/_/g, ' ')
+    .replace(/([a-z])([A-Z])/g, '$1 $2')
+    .replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
+/** Check if an object already matches the KPICardData shape */
+function isKPICardData(obj: Record<string, unknown>): boolean {
+  return 'value' in obj && (typeof obj.value === 'string' || typeof obj.value === 'number');
+}
+
+/**
+ * Auto-convert a flat object like { total_value: 131433 } into KPICardData.
+ * Picks the first numeric value as the KPI value, uses the key as label.
+ */
+function autoDetectKPI(obj: Record<string, unknown>): KPICardData {
+  // Find the first numeric key
+  for (const [key, val] of Object.entries(obj)) {
+    if (typeof val === 'number') {
+      return { label: keyToLabel(key), value: val };
+    }
+  }
+  // Fallback: first key with any value
+  const [key, val] = Object.entries(obj)[0] ?? ['', ''];
+  return { label: keyToLabel(String(key)), value: String(val ?? '') };
+}
+
 export default function KpiCard({ data, variant = 'default', label: propLabel, status: propStatus, prefix: propPrefix, suffix: propSuffix }: Props) {
   if (data == null) {
     return (
@@ -44,10 +73,20 @@ export default function KpiCard({ data, variant = 'default', label: propLabel, s
     );
   }
 
-  // When data is a primitive (from recipe JSONPath), merge with prop-level overrides
-  const card: KPICardData = typeof data === 'object'
-    ? { ...data, label: data.label || propLabel || '', status: data.status || propStatus }
-    : { label: propLabel || '', value: data, status: propStatus };
+  let card: KPICardData;
+
+  if (typeof data === 'string' || typeof data === 'number') {
+    // Primitive value
+    card = { label: propLabel || '', value: data, status: propStatus };
+  } else if (isKPICardData(data as Record<string, unknown>)) {
+    // Already in the expected shape
+    const d = data as KPICardData;
+    card = { ...d, label: d.label || propLabel || '', status: d.status || propStatus };
+  } else {
+    // Raw flat object — auto-detect
+    card = { ...autoDetectKPI(data as Record<string, unknown>), status: propStatus };
+    if (propLabel) card.label = propLabel;
+  }
 
   const prefix = card.prefix ?? propPrefix ?? (variant === 'currency' ? '\u20B9' : '');
   const suffix = card.suffix ?? propSuffix ?? (variant === 'percentage' ? '%' : '');

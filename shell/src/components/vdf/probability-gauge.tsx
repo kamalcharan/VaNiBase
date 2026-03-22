@@ -8,11 +8,71 @@ interface ProbabilityGaugeData {
 }
 
 interface Props {
-  data: ProbabilityGaugeData | null | undefined;
+  data: ProbabilityGaugeData | Record<string, unknown> | number | null | undefined;
   variant?: string;
+  label?: string;
 }
 
-export default function ProbabilityGauge({ data }: Props) {
+/** Convert snake_case or camelCase key to a human-readable label */
+function keyToLabel(key: string): string {
+  return key
+    .replace(/_/g, ' ')
+    .replace(/([a-z])([A-Z])/g, '$1 $2')
+    .replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
+/** Check if object has the standard ProbabilityGaugeData shape */
+function isGaugeData(obj: Record<string, unknown>): boolean {
+  return 'probability' in obj && typeof obj.probability === 'number' && 'label' in obj;
+}
+
+/**
+ * Normalize any incoming data shape to ProbabilityGaugeData.
+ * Accepts:
+ *   - raw number (0-1): treated as probability
+ *   - { probability: 0.45 }: uses probability key, auto-generates label
+ *   - { probability: 0.45, label: "..." }: standard shape
+ *   - any flat object with a numeric 0-1 value: picks first matching key
+ */
+function normalizeData(data: NonNullable<Props['data']>, propLabel?: string): ProbabilityGaugeData | null {
+  if (typeof data === 'number') {
+    return { probability: data, label: propLabel || 'Probability' };
+  }
+
+  if (typeof data !== 'object' || Array.isArray(data)) return null;
+
+  const obj = data as Record<string, unknown>;
+
+  if (isGaugeData(obj)) {
+    const g = obj as unknown as ProbabilityGaugeData;
+    return { ...g, label: g.label || propLabel || 'Probability' };
+  }
+
+  // Look for a probability-like key
+  const probKey =
+    Object.keys(obj).find((k) => k === 'probability') ??
+    Object.keys(obj).find((k) => k === 'prob') ??
+    Object.keys(obj).find((k) => k === 'confidence') ??
+    Object.keys(obj).find((k) => {
+      const v = obj[k];
+      return typeof v === 'number' && v >= 0 && v <= 1;
+    });
+
+  if (probKey && typeof obj[probKey] === 'number') {
+    return {
+      probability: obj[probKey] as number,
+      label: propLabel || keyToLabel(probKey),
+      target: typeof obj.target === 'number' ? obj.target : undefined,
+      thresholds: obj.thresholds as ProbabilityGaugeData['thresholds'],
+    };
+  }
+
+  return null;
+}
+
+export default function ProbabilityGauge({ data: rawData, label: propLabel }: Props) {
+  const data = rawData != null ? normalizeData(rawData, propLabel) : null;
+
   if (!data) {
     return (
       <div className="rounded-lg border border-border bg-surface p-4 flex items-center justify-center h-40">

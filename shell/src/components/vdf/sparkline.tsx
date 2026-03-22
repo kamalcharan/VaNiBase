@@ -7,11 +7,19 @@ interface SparklineData {
 }
 
 interface Props {
-  data: SparklineData | null | undefined;
+  data: SparklineData | number[] | null | undefined;
   variant?: string;
 }
 
-export default function Sparkline({ data }: Props) {
+export default function Sparkline({ data: rawData }: Props) {
+  // Normalize: accept raw number[] or { values: number[] }
+  const data: SparklineData | null =
+    rawData == null
+      ? null
+      : Array.isArray(rawData)
+        ? { values: rawData }
+        : rawData;
+
   if (!data?.values?.length) return <span className="text-muted">-</span>;
 
   const { values, showArea } = data;

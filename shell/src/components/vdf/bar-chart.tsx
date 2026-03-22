@@ -13,13 +13,104 @@ interface BarChartData {
 }
 
 interface Props {
-  data: BarChartData | null | undefined;
+  data: BarChartData | Record<string, unknown>[] | Record<string, unknown> | null | undefined;
   variant?: string;
 }
 
-export default function BarChart({ data }: Props) {
+/**
+ * Auto-detect BarChartData from a raw array of objects.
+ * Supports shapes like:
+ *   [{ category: "Mid Cap", value: 43467 }]
+ *   [{ name: "Jan", revenue: 5000 }]
+ */
+function autoDetectFromArray(arr: Record<string, unknown>[]): BarChartData | null {
+  if (arr.length === 0) return null;
+
+  const sample = arr[0];
+  const keys = Object.keys(sample);
+
+  // Find category key: prefer category > label > name > type > first string key
+  const catKey =
+    keys.find((k) => k === 'category') ??
+    keys.find((k) => k === 'label') ??
+    keys.find((k) => k === 'name') ??
+    keys.find((k) => k === 'type') ??
+    keys.find((k) => typeof sample[k] === 'string');
+
+  if (!catKey) return null;
+
+  // All numeric keys become values
+  const numericKeys = keys.filter(
+    (k) => k !== catKey && typeof sample[k] === 'number',
+  );
+
+  if (numericKeys.length === 0) return null;
+
+  const categories = arr.map((item) => String(item[catKey] ?? ''));
+
+  if (numericKeys.length === 1) {
+    // Single series: simple values array
+    return {
+      categories,
+      values: arr.map((item) => Number(item[numericKeys[0]] ?? 0)),
+    };
+  }
+
+  // Multi-series
+  return {
+    categories,
+    values: numericKeys.map((k) => ({
+      label: k.replace(/_/g, ' ').replace(/([a-z])([A-Z])/g, '$1 $2').replace(/\b\w/g, (c) => c.toUpperCase()),
+      data: arr.map((item) => Number(item[k] ?? 0)),
+    })),
+  };
+}
+
+/**
+ * Auto-detect BarChartData from a flat object like { "Mid Cap": 43467, "Large Cap": 43170 }.
+ */
+function flatObjectToBarData(obj: Record<string, unknown>): BarChartData | null {
+  const categories: string[] = [];
+  const values: number[] = [];
+  for (const [key, val] of Object.entries(obj)) {
+    if (typeof val === 'number') {
+      categories.push(key);
+      values.push(val);
+    }
+  }
+  return categories.length > 0 ? { categories, values } : null;
+}
+
+/** Normalize any incoming data shape to BarChartData */
+function normalizeData(data: NonNullable<Props['data']>): BarChartData | null {
+  // Already in expected shape
+  if (
+    typeof data === 'object' &&
+    !Array.isArray(data) &&
+    'categories' in data &&
+    Array.isArray((data as BarChartData).categories)
+  ) {
+    return data as BarChartData;
+  }
+
+  // Raw array of objects
+  if (Array.isArray(data)) {
+    return autoDetectFromArray(data as Record<string, unknown>[]);
+  }
+
+  // Flat object with numeric values
+  if (typeof data === 'object') {
+    return flatObjectToBarData(data as Record<string, unknown>);
+  }
+
+  return null;
+}
+
+export default function BarChart({ data: rawData }: Props) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const chartRef = useRef<Chart<'bar'> | null>(null);
+
+  const data = rawData ? normalizeData(rawData) : null;
 
   useEffect(() => {
     if (!canvasRef.current || !data?.categories?.length) return;

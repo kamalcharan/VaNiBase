@@ -17,7 +17,9 @@ interface Props {
 }
 
 export default function FilterRow({ data }: Props) {
-  if (!data?.filters?.length) return null;
+  if (!data?.filters?.length) {
+    return null;
+  }
 
   return (
     <div className="rounded-lg border border-border bg-surface p-3 flex flex-wrap items-center gap-3">

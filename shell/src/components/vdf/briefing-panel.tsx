@@ -17,12 +17,12 @@ interface BriefingPanelData {
 }
 
 interface Props {
-  data: BriefingPanelData | null | undefined;
+  data: BriefingPanelData | InsightCardData[] | null | undefined;
   variant?: string;
 }
 
-export default function BriefingPanel({ data }: Props) {
-  if (!data) {
+export default function BriefingPanel({ data: rawData }: Props) {
+  if (!rawData) {
     return (
       <div className="rounded-lg border border-border bg-surface p-4 animate-pulse">
         <div className="h-6 w-40 bg-surface-hover rounded mb-4" />
@@ -34,6 +34,13 @@ export default function BriefingPanel({ data }: Props) {
     );
   }
 
+  // Normalize: accept raw array of insights or full BriefingPanelData
+  const data: BriefingPanelData = Array.isArray(rawData)
+    ? { insights: rawData, date: new Date().toISOString() }
+    : rawData;
+
+  const insights = data.insights ?? [];
+
   return (
     <div className="rounded-lg border border-border bg-surface p-5">
       {data.greeting && (
@@ -42,11 +49,11 @@ export default function BriefingPanel({ data }: Props) {
       <p className="text-xs text-muted mb-4">
         {new Date(data.date).toLocaleDateString(undefined, { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
       </p>
-      {data.insights.length === 0 ? (
+      {insights.length === 0 ? (
         <p className="text-sm text-muted">No insights for today.</p>
       ) : (
         <div className="space-y-3">
-          {data.insights.map((insight, i) => (
+          {insights.map((insight, i) => (
             <InsightCard key={i} data={insight} />
           ))}
         </div>
