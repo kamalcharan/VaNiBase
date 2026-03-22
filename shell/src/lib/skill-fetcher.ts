@@ -28,7 +28,7 @@ async function callSkill(
   const res = await fetch(url, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...headers },
-    body: JSON.stringify(endpoint.params ?? {}),
+    body: JSON.stringify({ params: endpoint.params ?? {} }),
   });
   if (!res.ok) {
     const text = await res.text().catch(() => '');
