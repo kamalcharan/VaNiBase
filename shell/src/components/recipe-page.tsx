@@ -35,11 +35,9 @@ export default function RecipePage({ route }: RecipePageProps) {
   const [error, setError] = useState<string>();
 
   useEffect(() => {
-    const recipeConfig: RecipeConfig | undefined = config.recipes.find(
-      (r) => r.route === route,
-    );
+    const rc = config.recipes.find((r) => r.route === route);
 
-    if (!recipeConfig) {
+    if (!rc) {
       setError(`No recipe config found for route: ${route}`);
       setLoading(false);
       return;
@@ -54,17 +52,17 @@ export default function RecipePage({ route }: RecipePageProps) {
         setLoading(true);
         setError(undefined);
 
-        const recipeRes = await fetch(`${apiUrl}/api/v1/recipes/${recipeConfig.recipe}`, {
+        const recipeRes = await fetch(`${apiUrl}/api/v1/recipes/${rc.recipe}`, {
           headers,
         });
         if (!recipeRes.ok) {
-          throw new Error(`Failed to fetch recipe definition: ${recipeConfig.recipe}`);
+          throw new Error(`Failed to fetch recipe definition: ${rc.recipe}`);
         }
         const recipeDef: Recipe = await recipeRes.json();
 
         let skillData: Record<string, unknown> = {};
-        if (recipeConfig.skills.length > 0) {
-          skillData = await fetchRecipeData(recipeConfig.skills, apiUrl, headers);
+        if (rc.skills.length > 0) {
+          skillData = await fetchRecipeData(rc.skills, apiUrl, headers);
         }
 
         if (!cancelled) {
