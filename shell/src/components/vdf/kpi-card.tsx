@@ -34,7 +34,6 @@ const TREND_ICONS: Record<string, string> = {
   flat: '\u25C6',
 };
 
-/** Convert snake_case or camelCase key to a human-readable label */
 function keyToLabel(key: string): string {
   return key
     .replace(/_/g, ' ')
@@ -42,21 +41,13 @@ function keyToLabel(key: string): string {
     .replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
-/** Check if an object already matches the KPICardData shape */
 function isKPICardData(obj: Record<string, unknown>): boolean {
   return 'value' in obj && (typeof obj.value === 'string' || typeof obj.value === 'number');
 }
 
-/**
- * Auto-convert a flat object like { total_value: 131433 } into KPICardData.
- * Picks the first numeric value as the KPI value, uses the key as label.
- */
-/**
- * Auto-convert a raw object into KPICardData.
- * Uses heuristics: prefers 'name'/'label' for label, 
- * prefers meaningful numeric keys over 'id'.
- */
 function autoDetectKPI(obj: Record<string, unknown>, variant?: Variant): KPICardData {
+  const skipKeys = new Set(['id', 'client_id', 'tenant_id', 'user_id']);
+
   // Try to find a good label: name > label > title > first string
   const labelKey = ['name', 'label', 'title', 'scheme_name', 'category'].find(k => typeof obj[k] === 'string');
   const label = labelKey ? String(obj[labelKey]) : '';
@@ -90,8 +81,7 @@ function autoDetectKPI(obj: Record<string, unknown>, variant?: Variant): KPICard
     }
   }
 
-  // Default: pick first meaningful numeric key (skip 'id')
-  const skipKeys = new Set(['id', 'client_id', 'tenant_id', 'user_id']);
+  // Default: pick first meaningful numeric key (skip id fields)
   for (const [key, val] of Object.entries(obj)) {
     if (typeof val === 'number' && !skipKeys.has(key)) {
       return { label: label || keyToLabel(key), value: val };
@@ -99,7 +89,8 @@ function autoDetectKPI(obj: Record<string, unknown>, variant?: Variant): KPICard
   }
 
   // Fallback
-  const [key, val] = Object.entries(obj).find(([k]) => !skipKeys.has(k)) ?? ['', ''];
+  const entry = Object.entries(obj).find(([k]) => !skipKeys.has(k));
+  const [key, val] = entry ?? ['', ''];
   return { label: label || keyToLabel(String(key)), value: String(val ?? '') };
 }
 
@@ -116,15 +107,12 @@ export default function KpiCard({ data, variant = 'default', label: propLabel, s
   let card: KPICardData;
 
   if (typeof data === 'string' || typeof data === 'number') {
-    // Primitive value
     card = { label: propLabel || '', value: data, status: propStatus };
   } else if (isKPICardData(data as Record<string, unknown>)) {
-    // Already in the expected shape
     const d = data as KPICardData;
     card = { ...d, label: d.label || propLabel || '', status: d.status || propStatus };
   } else {
-    // Raw flat object — auto-detect
-card = { ...autoDetectKPI(data as Record<string, unknown>, variant), status: propStatus };
+    card = { ...autoDetectKPI(data as Record<string, unknown>, variant), status: propStatus };
     if (propLabel) card.label = propLabel;
   }
 
