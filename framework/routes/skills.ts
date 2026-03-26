@@ -24,8 +24,7 @@ import { HTTP_STATUS } from '../../shared/constants/index.js';
 export function registerSkillsRoute(router: Router, orchestrator: Orchestrator): void {
   router.post('/skills/:skillName/:functionName', async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const skillName = req.params.skillName as string;
-      const functionName = req.params.functionName as string;
+      const { skillName, functionName } = req.params;
       const params = req.body?.params ?? {};
 
       console.info(`[DEBUG][SkillsRoute] POST /skills/${skillName}/${functionName}`);
