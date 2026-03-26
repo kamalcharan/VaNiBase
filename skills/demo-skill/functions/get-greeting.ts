@@ -6,8 +6,8 @@
 import type { SkillContext, SkillResult } from '../../../shared/types/index.js';
 
 export async function getGreeting(
-  ctx: SkillContext,
-  params: Record<string, unknown>
+  params: Record<string, unknown>,
+  ctx: SkillContext
 ): Promise<SkillResult> {
   const name = (params.name as string) || 'there';
 

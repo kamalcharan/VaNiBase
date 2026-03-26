@@ -36,7 +36,7 @@ export function buildSkillContext(
   console.info(`[DEBUG][ContextBuilder] SkillContext built successfully. DB will call set_tenant_context("${auth.tenant_id}") on each query.`);
 
   return {
-tenant_id: auth.tenant_id,
+    tenantId: auth.tenant_id,
     userId: auth.sub,
     tier: auth.tier,
     db,
