@@ -40,9 +40,8 @@ export default function SliderPanel({ data: rawData, label: propLabel, min: prop
 
   if (!data) {
     return (
-      <div className="rounded-lg border border-border bg-surface p-4 animate-pulse">
-        <div className="h-4 w-24 bg-surface-hover rounded mb-2" />
-        <div className="h-2 w-full bg-surface-hover rounded" />
+      <div className="rounded-lg border border-border bg-surface p-4 flex items-center justify-center h-20">
+        <span className="text-muted text-sm">No data</span>
       </div>
     );
   }

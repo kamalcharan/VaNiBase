@@ -23,8 +23,8 @@ export default function Suggestion({ data: rawData, confidence: propConfidence }
 
   if (!data) {
     return (
-      <div className="rounded-lg border border-border bg-surface p-3 animate-pulse">
-        <div className="h-4 w-full bg-surface-hover rounded" />
+      <div className="rounded-lg border border-border bg-surface p-4 flex items-center justify-center h-16">
+        <span className="text-muted text-sm">No insights yet</span>
       </div>
     );
   }
