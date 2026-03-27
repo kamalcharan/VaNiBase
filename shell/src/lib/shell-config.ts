@@ -33,6 +33,25 @@ export interface RecipeConfig {
   skills: SkillEndpoint[];
   /** Optional auto-refresh interval in seconds */
   refreshInterval?: number;
+  /** Entity type this recipe displays (e.g., 'client', 'contract').
+   *  When set, this recipe can be a detail page for entity drill-down. */
+  entityType?: string;
+  /** URL/skill param name for the entity ID (e.g., 'client_id').
+   *  RecipePage injects the entity ID from the URL as this param in skill calls. */
+  entityParam?: string;
+}
+
+export interface EntityConfig {
+  /** Entity type identifier (e.g., 'client', 'contract', 'market') */
+  type: string;
+  /** The recipe route used as the detail page (e.g., '/client-360') */
+  detailRoute: string;
+  /** The param name used in skill calls (e.g., 'client_id') */
+  paramName: string;
+  /** Display label for the entity (e.g., 'Client', 'Contract') */
+  label: string;
+  /** The field in data-table row data that contains the entity ID (e.g., 'id', 'client_code') */
+  idField?: string;
 }
 
 export interface ShellConfig {
@@ -57,6 +76,9 @@ export interface ShellConfig {
     available?: string[];
   };
   recipes: RecipeConfig[];
+  /** Entity type definitions for drill-down navigation.
+   *  data-table uses this to know where to navigate on row click. */
+  entities?: EntityConfig[];
 }
 
 // ── Default config (framework demo) ──

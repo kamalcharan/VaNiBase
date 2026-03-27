@@ -26,9 +26,10 @@ interface Recipe {
 
 interface RecipePageProps {
   route: string;
+  entityId?: string;
 }
 
-export default function RecipePage({ route }: RecipePageProps) {
+export default function RecipePage({ route, entityId }: RecipePageProps) {
   const config = useShellConfig();
   const { getAuthHeaders, isAuthenticated } = useAuth();
   const [recipe, setRecipe] = useState<Recipe | null>(null);
@@ -64,14 +65,30 @@ export default function RecipePage({ route }: RecipePageProps) {
         }
         const recipeDef: Recipe = await recipeRes.json();
 
+        // Build skill endpoints with entity ID injected if applicable
+        let skillEndpoints = recipeConfig.skills;
+        if (entityId && recipeConfig.entityParam) {
+          skillEndpoints = recipeConfig.skills.map((skill) => ({
+            ...skill,
+            params: {
+              ...skill.params,
+              [recipeConfig.entityParam!]: entityId,
+            },
+          }));
+        }
+
         let skillData: Record<string, unknown> = {};
-        if (recipeConfig.skills.length > 0) {
-          skillData = await fetchRecipeData(recipeConfig.skills, apiUrl, headers);
+        if (skillEndpoints.length > 0) {
+          skillData = await fetchRecipeData(skillEndpoints, apiUrl, headers);
         }
 
         if (!cancelled) {
           setRecipe(recipeDef);
-          setData(skillData);
+          setData({
+            ...skillData,
+            _entityId: entityId,
+            _entityType: recipeConfig.entityType,
+          });
         }
       } catch (err) {
         if (!cancelled) {
@@ -86,7 +103,7 @@ export default function RecipePage({ route }: RecipePageProps) {
 
     load();
     return () => { cancelled = true; };
-  }, [route]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [route, entityId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return <RecipeRenderer recipe={recipe} data={data} loading={loading} error={error} />;
 }
