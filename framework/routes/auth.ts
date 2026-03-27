@@ -19,11 +19,11 @@ export function createAuthRouter(): Router {
   // ── POST /register ──
   router.post('/register', async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const { email, password, display_name, tenant_name, tenant_slug } = req.body || {};
+      const { email, password, name, tenant_name, tenant_slug } = req.body || {};
 
-      if (!email || !password || !display_name) {
+      if (!email || !password || !name || !tenant_name) {
         res.status(HTTP_STATUS.BAD_REQUEST).json({
-          error: 'Missing required fields: email, password, display_name',
+          error: 'Missing required fields: email, password, name, tenant_name',
           code: 'INVALID_REQUEST',
           status: HTTP_STATUS.BAD_REQUEST,
         });
@@ -39,13 +39,13 @@ export function createAuthRouter(): Router {
         return;
       }
 
-      const deviceInfo = req.headers['user-agent'] as string | undefined;
+      const userAgent = req.headers['user-agent'] as string | undefined;
       const ipAddress = (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim()
         || req.socket?.remoteAddress;
 
       const result = await register(
-        { email, password, display_name, tenant_name, tenant_slug },
-        deviceInfo,
+        { email, password, name, tenant_name, tenant_slug },
+        userAgent,
         ipAddress,
       );
 

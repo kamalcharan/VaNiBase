@@ -62,7 +62,7 @@ export function authMiddleware(req: Request, res: Response, next: NextFunction):
     req.auth = {
       sub: payload.sub,
       tenant_id: payload.tenant_id,
-      role: payload.role,
+      role: payload.roles?.[0] || 'member',  // Backward compat: first role as primary
       tier: payload.tier,
       email: payload.email,
       iat: payload.iat,

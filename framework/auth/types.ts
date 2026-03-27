@@ -1,5 +1,6 @@
 /**
  * Auth Layer — TypeScript Interfaces
+ * Aligned to 001_vn_foundation.sql + 002_vn_operational.sql schemas.
  */
 
 import type { SubscriptionTier } from '../../shared/types/index.js';
@@ -9,9 +10,9 @@ import type { SubscriptionTier } from '../../shared/types/index.js';
 export interface RegisterRequest {
   email: string;
   password: string;
-  display_name: string;
-  tenant_name?: string;           // If omitted, creates tenant from display_name
-  tenant_slug?: string;           // If omitted, auto-generated from tenant_name
+  name: string;                   // VN_users.name
+  tenant_name: string;            // VN_tenant_profiles.name
+  tenant_slug?: string;           // VN_tenants.slug (auto-generated if omitted)
 }
 
 export interface LoginRequest {
@@ -31,34 +32,36 @@ export interface TokenPair {
   expires_in: number;             // Access token TTL in seconds
 }
 
-export interface AuthUser {
+export interface AuthUserResponse {
   id: string;
   tenant_id: string;
   email: string;
-  display_name: string;
-  role: string;
+  name: string;
+  roles: string[];                // Role codes: ['owner'], ['admin', 'advisor']
 }
 
-export interface AuthTenant {
+export interface AuthTenantResponse {
   id: string;
-  name: string;
   slug: string;
-  tier: SubscriptionTier;
+  name: string;                   // From VN_tenant_profiles
+  display_name: string | null;
+  plan_code: string;              // From VN_subscriptions
+  status: string;                 // VN_tenants.status
 }
 
 export interface AuthResponse {
   tokens: TokenPair;
-  user: AuthUser;
-  tenant: AuthTenant;
+  user: AuthUserResponse;
+  tenant: AuthTenantResponse;
 }
 
-// ── JWT payload (matches shared/types JWTPayload) ──
+// ── JWT payloads ──
 
 export interface AccessTokenPayload {
   sub: string;                    // user_id
   tenant_id: string;
-  role: string;
-  tier: SubscriptionTier;
+  roles: string[];                // Role codes
+  tier: SubscriptionTier;         // Mapped from plan_code for backward compat
   email: string;
 }
 
