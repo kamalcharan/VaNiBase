@@ -98,6 +98,7 @@ async function main(): Promise<void> {
     console.log(`[VaNi] Chat:     POST http://localhost:${port}/api/v1/chat`);
     console.log(`[VaNi] Skills:   POST http://localhost:${port}/api/v1/skills/:skill/:function`);
     console.log(`[VaNi] Recipes:  GET http://localhost:${port}/api/v1/recipes`);
+    console.log(`[VaNi] Auth:     POST http://localhost:${port}/api/v1/auth/register|login|refresh|logout`);
     console.log(`[VaNi] Mock mode: ${orchestrator.mockMode ? 'ON' : 'OFF'}`);
   });
 
