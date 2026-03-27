@@ -42,6 +42,14 @@ export interface ShellConfig {
     devToken?: string;
     /** Header name, defaults to "Authorization" */
     headerName?: string;
+    /** Custom headers for dev bypass (X-Dev-Tenant-Id, etc.) */
+    customHeaders?: Record<string, string>;
+  };
+  theme?: {
+    /** Default theme id for this product (e.g. 'vikuna-black') */
+    default?: string;
+    /** If set, only these themes appear in the sidebar picker */
+    available?: string[];
   };
   recipes: RecipeConfig[];
 }

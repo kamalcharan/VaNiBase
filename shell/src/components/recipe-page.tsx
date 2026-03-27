@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useShellConfig, type RecipeConfig } from '../lib/shell-config';
 import { fetchRecipeData, buildAuthHeaders } from '../lib/skill-fetcher';
+import { useAuth } from '../context/auth-provider';
 import RecipeRenderer from './recipe-renderer';
 
 interface RecipeSlot {
@@ -29,6 +30,7 @@ interface RecipePageProps {
 
 export default function RecipePage({ route }: RecipePageProps) {
   const config = useShellConfig();
+  const { getAuthHeaders, isAuthenticated } = useAuth();
   const [recipe, setRecipe] = useState<Recipe | null>(null);
   const [data, setData] = useState<Record<string, unknown>>({});
   const [loading, setLoading] = useState(true);
@@ -44,7 +46,8 @@ export default function RecipePage({ route }: RecipePageProps) {
     }
 
     let cancelled = false;
-    const headers = buildAuthHeaders(config);
+    // Prefer auth context headers; fall back to dev headers from config
+    const headers = isAuthenticated ? getAuthHeaders() : buildAuthHeaders(config);
     const apiUrl = config.apiUrl || process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
 
     async function load() {

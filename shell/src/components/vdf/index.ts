@@ -23,6 +23,10 @@ import FilterRow from './filter-row';
 import Wizard from './wizard';
 import ApprovalCard from './approval-card';
 import BriefingPanel from './briefing-panel';
+import FormInput from './form-input';
+import Button from './button';
+import Alert from './alert';
+import Modal from './modal';
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 const VDF_COMPONENTS: Record<string, ComponentType<any>> = {
@@ -45,6 +49,10 @@ const VDF_COMPONENTS: Record<string, ComponentType<any>> = {
   'wizard': Wizard,
   'approval-card': ApprovalCard,
   'briefing-panel': BriefingPanel,
+  'form-input': FormInput,
+  'button': Button,
+  'alert': Alert,
+  'modal': Modal,
 };
 
 export default VDF_COMPONENTS;
