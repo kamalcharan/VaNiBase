@@ -11,7 +11,7 @@ import type {
   ChatRequest,
 } from '../../shared/types/index.js';
 import { DEFAULT_CHANNEL } from '../../shared/constants/index.js';
-import { isPoolReady, createTenantScopedDB, createStubDB } from '../db/index.js';
+import { isPoolReady, getPool, createTenantScopedDB, createStubDB } from '../db/index.js';
 import { enqueueJob } from '../queue/index.js';
 
 /**
@@ -32,7 +32,7 @@ export function buildSkillContext(
   console.info(`[DEBUG][ContextBuilder]   tier      = "${auth.tier}"`);
   console.info(`[DEBUG][ContextBuilder]   pool_ready = ${poolReady} → using ${poolReady ? 'createTenantScopedDB' : 'createStubDB'}`);
 
-  const db = poolReady ? createTenantScopedDB(auth.tenant_id) : createStubDB(auth.tenant_id);
+  const db = poolReady ? createTenantScopedDB(auth.tenant_id, getPool()) : createStubDB(auth.tenant_id);
   console.info(`[DEBUG][ContextBuilder] SkillContext built successfully. DB will call set_tenant_context("${auth.tenant_id}") on each query.`);
 
   return {

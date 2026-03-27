@@ -1,13 +1,13 @@
 /**
  * Health Check Endpoints
  * GET /health — basic liveness check
- * GET /health/ready — deep readiness check (DB + Redis + vLLM)
+ * GET /health/ready — deep readiness check (DB pools + Redis + vLLM)
  */
 
 import { Router } from 'express';
 import type { Request, Response } from 'express';
 import { loadConfig } from '../config.js';
-import { checkPoolHealth, isPoolReady } from '../db/index.js';
+import { isPoolReady, healthCheck } from '../db/index.js';
 import { checkRedisHealth } from '../redis/index.js';
 
 export const healthRouter = Router();
@@ -26,16 +26,16 @@ healthRouter.get('/health', (_req: Request, res: Response) => {
 
 healthRouter.get('/health/ready', async (_req: Request, res: Response) => {
   const config = loadConfig();
-  const checks: Record<string, boolean> = {};
+  const checks: Record<string, unknown> = {};
   const errors: Record<string, string> = {};
 
-  // DB check
+  // DB check — now per-pool breakdown
   if (!isPoolReady()) {
-    checks.postgres = false;
-    errors.postgres = 'Pool not initialized (DATABASE_URL empty?)';
+    checks.db = { status: 'unhealthy', pools: [] };
+    errors.db = 'No database pools initialized';
   } else {
-    checks.postgres = await checkPoolHealth();
-    if (!checks.postgres) errors.postgres = 'SELECT 1 failed — see server logs for details';
+    const dbReport = await healthCheck();
+    checks.db = dbReport;
   }
 
   // Redis check
@@ -51,7 +51,11 @@ healthRouter.get('/health/ready', async (_req: Request, res: Response) => {
     checks.vllm = false;
   }
 
-  const allHealthy = Object.values(checks).every(Boolean);
+  // Determine overall status
+  const dbHealthy = isPoolReady()
+    ? (checks.db as { status: string }).status !== 'unhealthy'
+    : false;
+  const allHealthy = dbHealthy && checks.redis === true;
 
   res.status(allHealthy ? 200 : 503).json({
     status: allHealthy ? 'ready' : 'degraded',

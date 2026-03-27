@@ -15,7 +15,7 @@ import cors from 'cors';
 import { loadConfig } from './config.js';
 import { Orchestrator } from './orchestrator.js';
 import { boot } from './boot.js';
-import { initPool } from './db/index.js';
+import { initPools, closeAll } from './db/index.js';
 import { initRedis, closeRedis } from './redis/index.js';
 import { initQueue, startWorker } from './queue/index.js';
 import { healthRouter } from './routes/health.js';
@@ -36,14 +36,8 @@ async function main(): Promise<void> {
 
   console.log(`[VaNi] Starting framework server (${config.nodeEnv})`);
 
-  // --- Infrastructure ---
-  const hasDb = !!(config.dbParams || config.databaseUrl);
-  if (hasDb) {
-    initPool(config.databaseUrl, config.dbParams);
-    console.log('[VaNi] Database pool initialized');
-  } else {
-    console.log('[VaNi] No database configured — using stub DB');
-  }
+  // --- Infrastructure: Database ---
+  await initPools(); // reads DB_PRIMARY / DATABASE_URL / DB_HOST from env
 
   if (config.redisUrl && config.redisUrl.startsWith('redis://')) {
     try {
@@ -105,12 +99,13 @@ async function main(): Promise<void> {
     console.log(`[VaNi] Mock mode: ${orchestrator.mockMode ? 'ON' : 'OFF'}`);
   });
 
-  const shutdown = () => {
+  const shutdown = async () => {
     console.log('\n[VaNi] Shutting down...');
+    await closeAll();
     server.close(() => process.exit(0));
   };
-  process.on('SIGINT', shutdown);
-  process.on('SIGTERM', shutdown);
+  process.on('SIGINT', () => { shutdown(); });
+  process.on('SIGTERM', () => { shutdown(); });
 }
 
 main().catch((err) => {
