@@ -2,7 +2,7 @@
 
 import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { useShellConfig } from '../lib/shell-config';
+import { useShellConfig } from '../../lib/shell-config';
 
 export default function Home() {
   const { recipes, product } = useShellConfig();

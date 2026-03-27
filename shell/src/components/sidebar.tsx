@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { useTheme } from './theme-provider';
 import { getTheme } from '../themes';
+import { useAuth } from '../context/auth-provider';
 
 interface SidebarProps {
   productName?: string;
@@ -18,6 +19,11 @@ export default function Sidebar({
   activeRecipe,
 }: SidebarProps) {
   const { themeId, setTheme, themes } = useTheme();
+  const { user, logout } = useAuth();
+
+  const handleLogout = async () => {
+    await logout();
+  };
 
   return (
     <aside className="fixed left-0 top-0 bottom-0 w-64 bg-surface border-r border-border flex flex-col z-20">
@@ -49,6 +55,22 @@ export default function Sidebar({
           </Link>
         ))}
       </nav>
+
+      {/* User info + Logout */}
+      {user && (
+        <div className="p-3 border-t border-border">
+          <div className="mb-2">
+            <p className="text-sm font-medium text-foreground truncate">{user.name}</p>
+            <p className="text-xs text-muted truncate">{user.email}</p>
+          </div>
+          <button
+            onClick={handleLogout}
+            className="w-full text-left px-3 py-2 rounded-md text-sm text-danger hover:bg-surface-hover transition-colors"
+          >
+            Sign out
+          </button>
+        </div>
+      )}
 
       {/* Theme Picker */}
       <div className="p-3 border-t border-border">

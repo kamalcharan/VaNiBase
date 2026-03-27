@@ -15,6 +15,7 @@ import {
   isValidTheme,
 } from '../themes';
 import { mapThemeToCSSVars } from '../themes/css-var-mapper';
+import { useAuth } from '../context/auth-provider';
 
 export type ColorMode = 'light' | 'dark';
 
@@ -77,6 +78,7 @@ export function ThemeProvider({
   const [themeId, setThemeIdState] = useState<string>(initialTheme || DEFAULT_THEME_ID);
   const [colorMode, setColorMode] = useState<ColorMode>(initialMode || 'light');
   const allThemes = listThemes();
+  const { tenant } = useAuth();
 
   // Load saved preferences on mount
   useEffect(() => {
@@ -106,6 +108,20 @@ export function ThemeProvider({
       // Ignore storage errors
     }
   }, [themeId, colorMode]);
+
+  // Set theme from tenant on login (if no user preference in localStorage)
+  useEffect(() => {
+    if (tenant?.theme_id && isValidTheme(tenant.theme_id)) {
+      try {
+        const savedTheme = localStorage.getItem(STORAGE_KEY_THEME);
+        if (!savedTheme) {
+          setThemeIdState(tenant.theme_id);
+        }
+      } catch {
+        setThemeIdState(tenant.theme_id);
+      }
+    }
+  }, [tenant?.theme_id]);
 
   const setTheme = useCallback((id: string) => {
     if (isValidTheme(id)) {

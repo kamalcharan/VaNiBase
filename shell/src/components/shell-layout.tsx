@@ -2,7 +2,6 @@
 
 import { useMemo, type ReactNode } from 'react';
 import { usePathname } from 'next/navigation';
-import { ThemeProvider } from './theme-provider';
 import { useShellConfig } from '../lib/shell-config';
 import Sidebar from './sidebar';
 import Header from './header';
@@ -19,28 +18,24 @@ export function ShellLayout({ children }: { children: ReactNode }) {
 
   // Determine active recipe from current pathname
   const activeRecipe = useMemo(() => {
-    // Exact match first
     const exact = recipes.find((r) => r.route === pathname);
     if (exact) return exact.route;
-    // Fallback: check if pathname starts with a recipe route
     const match = recipes.find((r) => pathname.startsWith(r.route + '/'));
     return match?.route;
   }, [recipes, pathname]);
 
   return (
-    <ThemeProvider>
-      <div className="flex min-h-screen">
-        <Sidebar
-          productName={product.name}
-          productTagline={product.tagline}
-          recipes={sidebarRecipes}
-          activeRecipe={activeRecipe}
-        />
-        <div className="flex-1 ml-64 flex flex-col">
-          <Header />
-          <main className="flex-1 p-6">{children}</main>
-        </div>
+    <div className="flex min-h-screen">
+      <Sidebar
+        productName={product.name}
+        productTagline={product.tagline}
+        recipes={sidebarRecipes}
+        activeRecipe={activeRecipe}
+      />
+      <div className="flex-1 ml-64 flex flex-col">
+        <Header />
+        <main className="flex-1 p-6">{children}</main>
       </div>
-    </ThemeProvider>
+    </div>
   );
 }

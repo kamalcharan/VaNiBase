@@ -1,6 +1,8 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useCallback } from 'react';
+import { useRouter } from 'next/navigation';
+import { useShellConfig } from '../../lib/shell-config';
 
 interface Column {
   key: string;
@@ -26,7 +28,11 @@ interface Props {
   sortable?: boolean;
   paginated?: boolean;
   pageSize?: number;
-  onRowClick?: string;
+  onRowClick?: string | ((row: Record<string, unknown>) => void);
+  /** Entity type for row click navigation (e.g., 'client') */
+  entityType?: string;
+  /** Field name in row data containing the entity ID. Defaults to 'id'. */
+  entityIdField?: string;
 }
 
 function inferColumnType(value: unknown): Column['type'] {
@@ -41,10 +47,34 @@ function autoLabel(key: string): string {
     .replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
-export default function DataTable({ data, variant, sortable, paginated, pageSize: propPageSize, onRowClick }: Props) {
+export default function DataTable({ data, variant, sortable, paginated, pageSize: propPageSize, onRowClick, entityType, entityIdField }: Props) {
   const [sortKey, setSortKey] = useState<string | null>(null);
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
   const [page, setPage] = useState(0);
+  const router = useRouter();
+  const shellConfig = useShellConfig();
+
+  const isClickable = !!(entityType || onRowClick);
+
+  const handleRowClick = useCallback((row: Record<string, unknown>) => {
+    // Custom callback handler takes priority
+    if (typeof onRowClick === 'function') {
+      onRowClick(row);
+      return;
+    }
+
+    // Entity navigation
+    if (entityType && shellConfig.entities) {
+      const entity = shellConfig.entities.find((e) => e.type === entityType);
+      if (entity) {
+        const idField = entityIdField || entity.idField || 'id';
+        const entityId = row[idField];
+        if (entityId) {
+          router.push(`${entity.detailRoute}/${entityId}`);
+        }
+      }
+    }
+  }, [entityType, entityIdField, onRowClick, shellConfig.entities, router]);
 
   // Normalize data: accept raw arrays OR { columns, rows } objects
   const tableData: DataTableData | null = useMemo(() => {
@@ -171,7 +201,10 @@ export default function DataTable({ data, variant, sortable, paginated, pageSize
               rows.map((row, i) => (
                 <tr
                   key={i}
-                  className="border-b border-border last:border-0 hover:bg-surface-hover transition-colors"
+                  className={`border-b border-border last:border-0 transition-colors ${
+                    isClickable ? 'cursor-pointer hover:bg-surface-hover' : 'hover:bg-surface-hover'
+                  }`}
+                  onClick={isClickable ? () => handleRowClick(row) : undefined}
                 >
                   {tableData.columns.map((col) => (
                     <td key={col.key} className={`px-3 py-2 ${alignClass(col)}`}>

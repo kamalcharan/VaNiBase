@@ -1,14 +1,19 @@
 'use client';
 
 import { useTheme } from './theme-provider';
+import { useAuth } from '../context/auth-provider';
 
 export default function Header() {
   const { colorMode, toggleColorMode } = useTheme();
+  const { user } = useAuth();
 
   return (
     <header className="sticky top-0 z-10 h-14 bg-surface border-b border-border flex items-center justify-between px-6">
       <div />
       <div className="flex items-center gap-3">
+        {user && (
+          <span className="text-sm text-muted">{user.email}</span>
+        )}
         {/* Light / Dark toggle */}
         <button
           onClick={toggleColorMode}
