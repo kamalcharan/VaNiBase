@@ -1,7 +1,8 @@
 'use client';
 
 import Link from 'next/link';
-import { useTheme, THEMES, type ThemeName } from './theme-provider';
+import { useTheme } from './theme-provider';
+import { getTheme } from '../themes';
 
 interface SidebarProps {
   productName?: string;
@@ -16,7 +17,7 @@ export default function Sidebar({
   recipes,
   activeRecipe,
 }: SidebarProps) {
-  const { theme, setTheme } = useTheme();
+  const { themeId, setTheme, themes } = useTheme();
 
   return (
     <aside className="fixed left-0 top-0 bottom-0 w-64 bg-surface border-r border-border flex flex-col z-20">
@@ -52,16 +53,16 @@ export default function Sidebar({
       {/* Theme Picker */}
       <div className="p-3 border-t border-border">
         <p className="text-xs font-semibold uppercase text-muted tracking-wider mb-2">Theme</p>
-        <div className="grid grid-cols-3 gap-1.5">
-          {THEMES.map((t) => (
+        <div className="grid grid-cols-4 gap-1.5">
+          {themes.map((t) => (
             <button
-              key={t.name}
-              onClick={() => setTheme(t.name)}
-              title={t.label}
+              key={t.id}
+              onClick={() => setTheme(t.id)}
+              title={t.name}
               className={`h-6 rounded-md border-2 transition-all ${
-                theme === t.name ? 'border-primary scale-110' : 'border-transparent'
+                themeId === t.id ? 'border-primary scale-110' : 'border-transparent'
               }`}
-              style={{ backgroundColor: themePreviewColor(t.name) }}
+              style={{ backgroundColor: getThemePreviewColor(t.id) }}
             />
           ))}
         </div>
@@ -70,14 +71,7 @@ export default function Sidebar({
   );
 }
 
-function themePreviewColor(name: ThemeName): string {
-  const map: Record<ThemeName, string> = {
-    'ocean-blue': '#0ea5e9',
-    'emerald-green': '#10b981',
-    'sunset-amber': '#f59e0b',
-    'royal-purple': '#8b5cf6',
-    'coral-reef': '#f43f5e',
-    'slate-gray': '#64748b',
-  };
-  return map[name];
+function getThemePreviewColor(id: string): string {
+  const theme = getTheme(id);
+  return theme.colors.brand.primary;
 }
