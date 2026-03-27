@@ -12,7 +12,7 @@ import type {
   ConversationTurn,
 } from '../../shared/types/index.js';
 import { VANI_DEFAULTS, TABLES } from '../../shared/constants/index.js';
-import { getPool } from '../db/index.js';
+import { getPool } from '../db/factory.js';
 
 export class MemoryStoreImpl implements MemoryStore {
   async getHistory(
