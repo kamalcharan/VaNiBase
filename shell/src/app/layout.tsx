@@ -1,22 +1,24 @@
 import type { Metadata } from 'next';
 import './globals.css';
 import { Providers } from './providers';
+import type { ShellConfig } from '../lib/shell-config-types';
 
 /**
  * Product config — in submodule mode, webpack alias @product-config
  * resolves to the product's shell.config.ts. In standalone/dev mode,
  * falls back to the default config with no recipes.
  */
-let productConfig: Record<string, unknown>;
+let productConfig: ShellConfig;
 try {
   // eslint-disable-next-line @typescript-eslint/no-require-imports
-  productConfig = require('@product-config').default;
+  productConfig = require('@product-config').default as ShellConfig;
 } catch {
-  productConfig = require('../lib/default-product-config').default;
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  productConfig = require('../lib/default-product-config').default as ShellConfig;
 }
 
-const productName = (productConfig?.product as Record<string, string>)?.name || 'VaNi';
-const productTagline = (productConfig?.product as Record<string, string>)?.tagline || 'Product Framework';
+const productName = productConfig.product?.name || 'VaNi';
+const productTagline = productConfig.product?.tagline || 'Product Framework';
 
 export const metadata: Metadata = {
   title: productName,

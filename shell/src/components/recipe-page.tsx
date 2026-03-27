@@ -45,6 +45,7 @@ export default function RecipePage({ route }: RecipePageProps) {
       return;
     }
 
+    const recipeConfig = rc;
     let cancelled = false;
     // Prefer auth context headers; fall back to dev headers from config
     const headers = isAuthenticated ? getAuthHeaders() : buildAuthHeaders(config);
@@ -55,17 +56,17 @@ export default function RecipePage({ route }: RecipePageProps) {
         setLoading(true);
         setError(undefined);
 
-        const recipeRes = await fetch(`${apiUrl}/api/v1/recipes/${rc.recipe}`, {
+        const recipeRes = await fetch(`${apiUrl}/api/v1/recipes/${recipeConfig.recipe}`, {
           headers,
         });
         if (!recipeRes.ok) {
-          throw new Error(`Failed to fetch recipe definition: ${rc.recipe}`);
+          throw new Error(`Failed to fetch recipe definition: ${recipeConfig.recipe}`);
         }
         const recipeDef: Recipe = await recipeRes.json();
 
         let skillData: Record<string, unknown> = {};
-        if (rc.skills.length > 0) {
-          skillData = await fetchRecipeData(rc.skills, apiUrl, headers);
+        if (recipeConfig.skills.length > 0) {
+          skillData = await fetchRecipeData(recipeConfig.skills, apiUrl, headers);
         }
 
         if (!cancelled) {
