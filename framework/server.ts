@@ -23,6 +23,7 @@ import { createChatRouter } from './routes/chat.js';
 import { createRecipesRouter } from './routes/recipes.js';
 import { registerSkillsRoute } from './routes/skills.js';
 import { jobsRouter } from './routes/jobs.js';
+import { createAuthRouter } from './routes/auth.js';
 import { authMiddleware } from './gateway/auth.js';
 import { tenantContext } from './gateway/tenant-context.js';
 import { rateLimitMiddleware } from './middleware/rate-limiter.js';
@@ -77,6 +78,7 @@ async function main(): Promise<void> {
   app.use(healthRouter);
   app.use(metricsRouter);
   app.use('/api/v1', createRecipesRouter(orchestrator.recipeRegistry));
+  app.use('/api/v1/auth', createAuthRouter());
 
   // Protected routes
   const protectedRouter = express.Router();
