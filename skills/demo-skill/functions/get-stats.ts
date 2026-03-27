@@ -6,8 +6,8 @@
 import type { SkillContext, SkillResult } from '../../../shared/types/index.js';
 
 export async function getStats(
-  _params: Record<string, unknown>,
-  ctx: SkillContext
+  ctx: SkillContext,
+  _params: Record<string, unknown>
 ): Promise<SkillResult> {
   // Query tenant name
   let tenantName = 'Unknown Tenant';

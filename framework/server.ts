@@ -38,8 +38,9 @@ async function main(): Promise<void> {
   console.log(`[VaNi] Starting framework server (${config.nodeEnv})`);
 
   // --- Infrastructure: Database ---
-  await initPools(); // reads DB_PRIMARY / DATABASE_URL / DB_HOST from env
+  await initPools();
 
+  // --- Infrastructure: Redis + Queue ---
   if (config.redisUrl && config.redisUrl.startsWith('redis://')) {
     try {
       const redis = initRedis(config.redisUrl);
@@ -78,9 +79,11 @@ async function main(): Promise<void> {
   app.use(healthRouter);
   app.use(metricsRouter);
   app.use('/api/v1', createRecipesRouter(orchestrator.recipeRegistry));
+
+  // Auth routes (login/refresh are public, me/logout/preferences are protected internally)
   app.use('/api/v1/auth', createAuthRouter());
 
-  // Protected routes
+  // Protected routes (require JWT or dev bypass)
   const protectedRouter = express.Router();
   protectedRouter.use(authMiddleware);
   protectedRouter.use(tenantContext);
@@ -95,10 +98,10 @@ async function main(): Promise<void> {
   const server = app.listen(port, () => {
     console.log(`[VaNi] Server running on port ${port}`);
     console.log(`[VaNi] Health:   http://localhost:${port}/health`);
+    console.log(`[VaNi] Auth:     POST http://localhost:${port}/api/v1/auth/login`);
     console.log(`[VaNi] Chat:     POST http://localhost:${port}/api/v1/chat`);
     console.log(`[VaNi] Skills:   POST http://localhost:${port}/api/v1/skills/:skill/:function`);
     console.log(`[VaNi] Recipes:  GET http://localhost:${port}/api/v1/recipes`);
-    console.log(`[VaNi] Auth:     POST http://localhost:${port}/api/v1/auth/register|login|refresh|logout`);
     console.log(`[VaNi] Mock mode: ${orchestrator.mockMode ? 'ON' : 'OFF'}`);
   });
 
