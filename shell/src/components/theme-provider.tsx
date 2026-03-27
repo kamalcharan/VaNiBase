@@ -8,71 +8,120 @@ import {
   useCallback,
   type ReactNode,
 } from 'react';
-
-export type ThemeName =
-  | 'ocean-blue'
-  | 'emerald-green'
-  | 'sunset-amber'
-  | 'royal-purple'
-  | 'coral-reef'
-  | 'slate-gray';
+import {
+  DEFAULT_THEME_ID,
+  getTheme,
+  listThemes,
+  isValidTheme,
+} from '../themes';
+import { mapThemeToCSSVars } from '../themes/css-var-mapper';
 
 export type ColorMode = 'light' | 'dark';
 
 interface ThemeContextValue {
-  theme: ThemeName;
-  setTheme: (t: ThemeName) => void;
+  /** Current theme id */
+  themeId: string;
+  /** Set theme by id */
+  setTheme: (id: string) => void;
+  /** Current color mode */
   colorMode: ColorMode;
+  /** Toggle between light and dark */
   toggleColorMode: () => void;
+  /** All available themes for UI rendering */
+  themes: { id: string; name: string }[];
 }
 
 const ThemeContext = createContext<ThemeContextValue>({
-  theme: 'ocean-blue',
+  themeId: DEFAULT_THEME_ID,
   setTheme: () => {},
   colorMode: 'light',
   toggleColorMode: () => {},
+  themes: [],
 });
 
 export const useTheme = () => useContext(ThemeContext);
 
-export const THEMES: { name: ThemeName; label: string }[] = [
-  { name: 'ocean-blue', label: 'Ocean Blue' },
-  { name: 'emerald-green', label: 'Emerald Green' },
-  { name: 'sunset-amber', label: 'Sunset Amber' },
-  { name: 'royal-purple', label: 'Royal Purple' },
-  { name: 'coral-reef', label: 'Coral Reef' },
-  { name: 'slate-gray', label: 'Slate Gray' },
-];
+// Storage keys
+const STORAGE_KEY_THEME = 'vani-theme-id';
+const STORAGE_KEY_MODE = 'vani-color-mode';
 
-export function ThemeProvider({ children }: { children: ReactNode }) {
-  const [theme, setThemeState] = useState<ThemeName>('ocean-blue');
-  const [colorMode, setColorMode] = useState<ColorMode>('light');
+/**
+ * Apply CSS variables to the document root.
+ * Called on every theme/mode change.
+ */
+function applyCSSVars(themeId: string, isDark: boolean): void {
+  const theme = getTheme(themeId);
+  const vars = mapThemeToCSSVars(theme, isDark);
+  const root = document.documentElement;
 
+  for (const [key, value] of Object.entries(vars)) {
+    root.style.setProperty(key, value);
+  }
+
+  // Set data-theme for any CSS that needs it
+  root.setAttribute('data-theme', themeId);
+
+  // Toggle dark class for Tailwind dark mode
+  root.classList.toggle('dark', isDark);
+}
+
+export function ThemeProvider({
+  children,
+  initialTheme,
+  initialMode,
+}: {
+  children: ReactNode;
+  initialTheme?: string;
+  initialMode?: ColorMode;
+}) {
+  const [themeId, setThemeIdState] = useState<string>(initialTheme || DEFAULT_THEME_ID);
+  const [colorMode, setColorMode] = useState<ColorMode>(initialMode || 'light');
+  const allThemes = listThemes();
+
+  // Load saved preferences on mount
   useEffect(() => {
-    const saved = localStorage.getItem('vani-theme') as ThemeName | null;
-    const savedMode = localStorage.getItem('vani-color-mode') as ColorMode | null;
-    if (saved) setThemeState(saved);
-    if (savedMode) setColorMode(savedMode);
+    try {
+      const savedTheme = localStorage.getItem(STORAGE_KEY_THEME);
+      const savedMode = localStorage.getItem(STORAGE_KEY_MODE) as ColorMode | null;
+
+      if (savedTheme && isValidTheme(savedTheme)) {
+        setThemeIdState(savedTheme);
+      }
+      if (savedMode === 'light' || savedMode === 'dark') {
+        setColorMode(savedMode);
+      }
+    } catch {
+      // localStorage may not be available (SSR, incognito)
+    }
   }, []);
 
+  // Apply CSS vars whenever theme or mode changes
   useEffect(() => {
-    document.documentElement.setAttribute('data-theme', theme);
-    localStorage.setItem('vani-theme', theme);
-  }, [theme]);
+    applyCSSVars(themeId, colorMode === 'dark');
 
-  useEffect(() => {
-    document.documentElement.classList.toggle('dark', colorMode === 'dark');
-    localStorage.setItem('vani-color-mode', colorMode);
-  }, [colorMode]);
+    try {
+      localStorage.setItem(STORAGE_KEY_THEME, themeId);
+      localStorage.setItem(STORAGE_KEY_MODE, colorMode);
+    } catch {
+      // Ignore storage errors
+    }
+  }, [themeId, colorMode]);
 
-  const setTheme = useCallback((t: ThemeName) => setThemeState(t), []);
+  const setTheme = useCallback((id: string) => {
+    if (isValidTheme(id)) {
+      setThemeIdState(id);
+    }
+  }, []);
+
   const toggleColorMode = useCallback(
     () => setColorMode((m) => (m === 'light' ? 'dark' : 'light')),
-    []
+    [],
   );
 
   return (
-    <ThemeContext.Provider value={{ theme, setTheme, colorMode, toggleColorMode }}>
+    <ThemeContext.Provider
+      value={{ themeId, setTheme, colorMode, toggleColorMode, themes: allThemes }}
+    >
       {children}
     </ThemeContext.Provider>
   );
