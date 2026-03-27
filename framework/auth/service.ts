@@ -24,6 +24,7 @@ import type {
   TokenPair,
   AuthUserResponse,
   AuthTenantResponse,
+  SessionLimitResponse,
 } from './types.js';
 import type { SubscriptionTier } from '../../shared/types/index.js';
 
@@ -260,7 +261,7 @@ export async function login(
   req: LoginRequest,
   userAgent?: string,
   ipAddress?: string,
-): Promise<AuthResponse> {
+): Promise<AuthResponse | SessionLimitResponse> {
   const pool = getPool();
   const email = req.email.toLowerCase().trim();
 
@@ -315,6 +316,44 @@ export async function login(
     'UPDATE VN_users SET failed_login_count = 0, locked_until = NULL, last_login_at = now() WHERE id = $1',
     [user.id],
   );
+
+  // --- Session limit check ---
+  const subRow = await pool.query(
+    `SELECT max_sessions FROM VN_subscriptions
+     WHERE tenant_id = $1 AND is_current = true AND status = 'active'`,
+    [user.tenant_id],
+  );
+  const maxSessions = (subRow.rows[0] as { max_sessions: number } | undefined)?.max_sessions ?? 1;
+
+  const sessionCount = await pool.query(
+    `SELECT COUNT(*)::int as count FROM VN_refresh_tokens
+     WHERE user_id = $1 AND is_active = true AND expires_at > now()`,
+    [user.id],
+  );
+  const activeCount = (sessionCount.rows[0] as { count: number } | undefined)?.count ?? 0;
+
+  if (activeCount >= maxSessions) {
+    const activeSessions = await pool.query(
+      `SELECT id as session_id, device_type, os, browser,
+              ip_address::text, last_activity_at, created_at
+       FROM VN_refresh_tokens
+       WHERE user_id = $1 AND is_active = true AND expires_at > now()
+       ORDER BY last_activity_at DESC`,
+      [user.id],
+    );
+
+    auditLog(user.tenant_id, user.id, 'security', 'max_sessions_exceeded', {
+      ipAddress, userAgent,
+      metadata: { max_sessions: maxSessions, active_sessions: activeCount },
+    });
+
+    return {
+      code: 'SESSION_LIMIT' as const,
+      message: `Maximum ${maxSessions} concurrent session(s) allowed. Please end an existing session to continue.`,
+      active_sessions: activeSessions.rows as SessionLimitResponse['active_sessions'],
+      max_sessions: maxSessions,
+    };
+  }
 
   const roles = await getUserRoles(user.id);
   const tenantInfo = await getTenantInfo(user.tenant_id);
@@ -397,13 +436,24 @@ export async function logout(refreshToken: string, ipAddress?: string, userAgent
 }
 
 /**
- * Get current user profile + tenant info.
+ * Get current user profile + tenant info + preferences + subscription.
  */
-export async function me(userId: string, tenantId: string): Promise<{ user: AuthUserResponse; tenant: AuthTenantResponse }> {
+export async function me(userId: string, tenantId: string): Promise<Record<string, unknown>> {
   const pool = getPool();
 
   const { rows } = await pool.query(
-    'SELECT id, tenant_id, email, name FROM VN_users WHERE id = $1 AND tenant_id = $2',
+    `SELECT
+       u.id, u.tenant_id, u.email, u.name, u.avatar_url, u.preferences,
+       t.slug as tenant_slug, t.status as tenant_status,
+       tp.name as tenant_name, tp.display_name as tenant_display_name,
+       tp.theme_id as tenant_theme_id, tp.logo_url as tenant_logo_url,
+       tp.brand_color as tenant_brand_color,
+       s.plan_code, s.max_sessions, s.max_users, s.features
+     FROM VN_users u
+     JOIN VN_tenants t ON u.tenant_id = t.id
+     JOIN VN_tenant_profiles tp ON t.id = tp.tenant_id
+     LEFT JOIN VN_subscriptions s ON t.id = s.tenant_id AND s.is_current = true
+     WHERE u.id = $1 AND u.tenant_id = $2`,
     [userId, tenantId],
   );
 
@@ -411,12 +461,118 @@ export async function me(userId: string, tenantId: string): Promise<{ user: Auth
     throw Object.assign(new Error('User not found'), { status: 404, code: 'AUTH_USER_NOT_FOUND' });
   }
 
-  const user = rows[0];
+  const row = rows[0];
   const roles = await getUserRoles(userId);
-  const tenantInfo = await getTenantInfo(tenantId);
 
   return {
-    user: { id: user.id, tenant_id: user.tenant_id, email: user.email, name: user.name, roles },
-    tenant: tenantInfo,
+    user: {
+      id: row.id,
+      tenant_id: row.tenant_id,
+      email: row.email,
+      name: row.name,
+      avatar_url: row.avatar_url,
+      roles,
+      preferences: row.preferences || {},
+    },
+    tenant: {
+      id: row.tenant_id,
+      slug: row.tenant_slug,
+      name: row.tenant_name,
+      display_name: row.tenant_display_name,
+      theme_id: row.tenant_theme_id,
+      logo_url: row.tenant_logo_url,
+      brand_color: row.tenant_brand_color,
+      status: row.tenant_status,
+      subscription: {
+        plan_code: row.plan_code || 'free',
+        max_sessions: row.max_sessions || 1,
+        max_users: row.max_users || 1,
+        features: row.features || [],
+      },
+    },
   };
+}
+
+/**
+ * Verify email + password without issuing tokens.
+ * Used by /sessions/revoke when user hasn't logged in yet.
+ */
+export async function verifyCredentials(
+  email: string,
+  password: string,
+): Promise<{ id: string; tenant_id: string } | null> {
+  const pool = getPool();
+  const { rows } = await pool.query(
+    `SELECT u.id, u.tenant_id, u.password_hash, u.is_active, u.locked_until, t.status as tenant_status
+     FROM VN_users u JOIN VN_tenants t ON u.tenant_id = t.id
+     WHERE u.email = $1`,
+    [email.toLowerCase().trim()],
+  );
+  const user = rows[0];
+  if (!user || !user.is_active || user.tenant_status !== 'active') return null;
+  if (user.locked_until && new Date(user.locked_until) > new Date()) return null;
+
+  const valid = await verifyPassword(password, user.password_hash);
+  if (!valid) return null;
+
+  return { id: user.id, tenant_id: user.tenant_id };
+}
+
+/**
+ * Revoke specific sessions by ID.
+ */
+export async function revokeSessions(
+  userId: string,
+  sessionIds: string[],
+): Promise<{ revoked: number }> {
+  const pool = getPool();
+
+  const result = await pool.query(
+    `UPDATE VN_refresh_tokens
+     SET is_active = false, revoked_at = now(), revoked_reason = 'session_replaced'
+     WHERE id = ANY($1) AND user_id = $2 AND is_active = true
+     RETURNING id`,
+    [sessionIds, userId],
+  );
+
+  if (result.rows.length > 0) {
+    const { rows: userRows } = await pool.query('SELECT tenant_id FROM VN_users WHERE id = $1', [userId]);
+    const tenantId = (userRows[0] as { tenant_id: string } | undefined)?.tenant_id;
+    for (const row of result.rows) {
+      auditLog(tenantId || null, userId, 'auth', 'session_revoked', {
+        targetType: 'session', targetId: (row as { id: string }).id,
+      });
+    }
+  }
+
+  return { revoked: result.rows.length };
+}
+
+/**
+ * Update user preferences (merges into existing JSONB).
+ */
+export async function updatePreferences(
+  userId: string,
+  preferences: { theme_override?: string; color_mode?: string; language?: string },
+): Promise<Record<string, unknown>> {
+  const pool = getPool();
+
+  const result = await pool.query(
+    `UPDATE VN_users
+     SET preferences = preferences || $1::jsonb, updated_at = now()
+     WHERE id = $2
+     RETURNING preferences`,
+    [JSON.stringify(preferences), userId],
+  );
+
+  if (result.rows.length === 0) {
+    throw Object.assign(new Error('User not found'), { status: 404, code: 'AUTH_USER_NOT_FOUND' });
+  }
+
+  const { rows: userRows } = await pool.query('SELECT tenant_id FROM VN_users WHERE id = $1', [userId]);
+  auditLog((userRows[0] as { tenant_id: string } | undefined)?.tenant_id || null, userId, 'config', 'preferences_updated', {
+    metadata: preferences,
+  });
+
+  return (result.rows[0] as { preferences: Record<string, unknown> }).preferences;
 }

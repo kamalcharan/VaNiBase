@@ -70,3 +70,28 @@ export interface RefreshTokenPayload {
   tenant_id: string;
   type: 'refresh';
 }
+
+// ── Session limit ──
+
+export interface SessionLimitResponse {
+  code: 'SESSION_LIMIT';
+  message: string;
+  active_sessions: {
+    session_id: string;
+    device_type: string | null;
+    os: string | null;
+    browser: string | null;
+    ip_address: string | null;
+    last_activity_at: string;
+    created_at: string;
+  }[];
+  max_sessions: number;
+}
+
+// ── Preferences ──
+
+export interface UpdatePreferencesRequest {
+  theme_override?: string;
+  color_mode?: 'light' | 'dark' | 'system';
+  language?: string;
+}
