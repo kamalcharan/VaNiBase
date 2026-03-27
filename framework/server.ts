@@ -23,6 +23,7 @@ import { createChatRouter } from './routes/chat.js';
 import { createRecipesRouter } from './routes/recipes.js';
 import { registerSkillsRoute } from './routes/skills.js';
 import { jobsRouter } from './routes/jobs.js';
+import { createAuthRouter, createMeRouter } from './routes/auth.js';
 import { authMiddleware } from './gateway/auth.js';
 import { tenantContext } from './gateway/tenant-context.js';
 import { rateLimitMiddleware } from './middleware/rate-limiter.js';
@@ -77,12 +78,14 @@ async function main(): Promise<void> {
   app.use(healthRouter);
   app.use(metricsRouter);
   app.use('/api/v1', createRecipesRouter(orchestrator.recipeRegistry));
+  app.use('/api/v1/auth', createAuthRouter());
 
   // Protected routes
   const protectedRouter = express.Router();
   protectedRouter.use(authMiddleware);
   protectedRouter.use(tenantContext);
   protectedRouter.use(rateLimitMiddleware);
+  protectedRouter.use('/auth', createMeRouter());
   protectedRouter.use('/chat', createChatRouter(orchestrator));
   registerSkillsRoute(protectedRouter, orchestrator);
   protectedRouter.use(jobsRouter);
@@ -96,6 +99,7 @@ async function main(): Promise<void> {
     console.log(`[VaNi] Chat:     POST http://localhost:${port}/api/v1/chat`);
     console.log(`[VaNi] Skills:   POST http://localhost:${port}/api/v1/skills/:skill/:function`);
     console.log(`[VaNi] Recipes:  GET http://localhost:${port}/api/v1/recipes`);
+    console.log(`[VaNi] Auth:     POST http://localhost:${port}/api/v1/auth/register|login|refresh|logout`);
     console.log(`[VaNi] Mock mode: ${orchestrator.mockMode ? 'ON' : 'OFF'}`);
   });
 
