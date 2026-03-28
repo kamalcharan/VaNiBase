@@ -7,11 +7,11 @@ import { ThemeProvider } from '../components/theme-provider';
 
 /**
  * Provider nesting order (critical):
- *   ShellConfigProvider → AuthProvider → ThemeProvider
+ *   ShellConfigProvider → AuthProvider → ThemeProvider → Product providers[]
  *
  * Config is loaded client-side via require() to preserve non-serializable
- * values (e.g., pages.login component references) that would be stripped
- * at the Server Component → Client Component serialization boundary.
+ * values (e.g., pages.login component references, provider components) that
+ * would be stripped at the Server Component → Client Component serialization boundary.
  */
 let productConfig;
 try {
@@ -23,11 +23,20 @@ try {
 }
 
 export function Providers({ children }: { children: ReactNode }) {
+  // Wrap children with product-level providers (first in array = outermost)
+  const productProviders = productConfig.providers ?? [];
+  const wrapped = productProviders.reduceRight(
+    (acc: ReactNode, Provider: React.ComponentType<{ children: ReactNode }>) => (
+      <Provider>{acc}</Provider>
+    ),
+    children,
+  );
+
   return (
     <ShellConfigProvider config={productConfig}>
       <AuthProvider>
         <ThemeProvider>
-          {children}
+          {wrapped}
         </ThemeProvider>
       </AuthProvider>
     </ShellConfigProvider>

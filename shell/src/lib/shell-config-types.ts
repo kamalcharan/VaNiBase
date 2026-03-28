@@ -1,4 +1,4 @@
-import type { ComponentType } from 'react';
+import type { ComponentType, ReactNode } from 'react';
 import type { OnboardingStepDef } from '../../../shared/onboarding-steps.js';
 
 // Re-export for convenience
@@ -89,6 +89,9 @@ export interface ShellConfig {
   pages?: {
     login?: ComponentType;
   };
+  /** Product-level context providers to wrap around the app.
+   *  First provider in array = outermost wrapper. */
+  providers?: ComponentType<{ children: ReactNode }>[];
 }
 
 // ── Default config (framework demo) ──
@@ -104,4 +107,5 @@ export const DEFAULT_SHELL_CONFIG: ShellConfig = {
   onboarding: {
     steps: DEFAULT_ONBOARDING_STEPS,
   },
+  providers: [],
 };
