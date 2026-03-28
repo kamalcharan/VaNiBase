@@ -21,3 +21,21 @@ The `ErrorBoundary` uses inline styles with CSS variables (`var(--color-*)`) rat
 ### Error Logger — Console vs DB
 
 In development mode (`NODE_ENV=development`), errors are logged to console only. In all other environments, errors are inserted into `VN_error_log`. If the DB pool is not initialized (stub mode), the logger falls back to console silently. The DB insert is fire-and-forget — it never blocks or throws.
+
+## Invitation Endpoints
+
+### Email Dispatch Not Implemented
+
+The invite endpoint returns raw tokens in the response but does not send invitation emails. A future integration should send emails containing an accept link with the token. Until then, the caller (product app) is responsible for email dispatch.
+
+### Multi-Tenancy Model — Strict Isolation (Model 1)
+
+Multi-tenancy model is strict isolation (Model 1). One user row per tenant. No cross-tenant user linking. `invite/accept` always creates a new user. The same email can exist independently in multiple tenants (enforced by `UNIQUE(tenant_id, email)` on `VN_users`). Each tenant's user has their own password, preferences, and role assignments.
+
+### Invitation Expiry Cleanup
+
+Expired invitations are not automatically marked as `'expired'` — they remain as `'pending'` with an `expires_at` in the past. The accept flow validates expiry at runtime. Consider adding a periodic cleanup function (similar to `vn_cleanup_expired_sessions`) to mark old pending invitations as expired for cleaner reporting.
+
+### Max Invitation Limits
+
+The batch invite endpoint does not enforce a maximum number of invitations per request or per tenant. Consider adding a configurable limit (e.g., max 50 per request) to prevent abuse, especially before email dispatch is implemented.

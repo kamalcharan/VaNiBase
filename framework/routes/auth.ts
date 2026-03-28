@@ -8,6 +8,10 @@
  * POST /api/v1/auth/sessions/revoke  — Revoke specific sessions (password-based or Bearer)
  * PATCH /api/v1/auth/preferences     — Update user preferences (Bearer required)
  * GET   /api/v1/auth/me              — Return current user profile (Bearer required)
+ * POST  /api/v1/auth/invite          — Send batch invitations (owner/admin only)
+ * POST  /api/v1/auth/invite/accept   — Accept an invitation (public, creates new user)
+ * GET   /api/v1/auth/invitations     — List tenant invitations (owner/admin only)
+ * DELETE /api/v1/auth/invitations/:id — Revoke a pending invitation (owner/admin only)
  */
 
 import { Router } from 'express';
@@ -15,9 +19,11 @@ import type { Request, Response, NextFunction } from 'express';
 import {
   register, login, refresh, logout, me,
   verifyCredentials, revokeSessions, updatePreferences,
+  createInvitations, acceptInvitation, listInvitations, revokeInvitation,
 } from '../auth/index.js';
 import { authMiddleware } from '../gateway/auth.js';
 import { HTTP_STATUS } from '../../shared/constants/index.js';
+import { ValidationError, ForbiddenError } from '../errors/index.js';
 
 export function createAuthRouter(): Router {
   const router = Router();
@@ -217,6 +223,97 @@ export function createAuthRouter(): Router {
       const auth = req.auth!;
       const result = await me(auth.sub, auth.tenant_id);
       res.json(result);
+    } catch (err) {
+      next(err);
+    }
+  });
+
+  // ── POST /invite (Protected — owner/admin only) ──
+  router.post('/invite', authMiddleware, async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const auth = req.auth!;
+
+      if (!['owner', 'admin'].includes(auth.role)) {
+        throw new ForbiddenError('Only owner or admin can invite team members');
+      }
+
+      const { invitations } = req.body || {};
+      if (!Array.isArray(invitations) || invitations.length === 0) {
+        throw new ValidationError('invitations array is required and must not be empty');
+      }
+
+      for (const inv of invitations) {
+        if (!inv.email || typeof inv.email !== 'string') {
+          throw new ValidationError('Each invitation must include a valid email');
+        }
+      }
+
+      const results = await createInvitations(auth.tenant_id, auth.sub, invitations);
+      res.status(HTTP_STATUS.CREATED).json({ invitations: results });
+    } catch (err) {
+      next(err);
+    }
+  });
+
+  // ── POST /invite/accept (Public — no auth required) ──
+  router.post('/invite/accept', async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { token, full_name, password, phone } = req.body || {};
+
+      if (!token || typeof token !== 'string') {
+        throw new ValidationError('token is required');
+      }
+      if (!full_name || typeof full_name !== 'string') {
+        throw new ValidationError('full_name is required');
+      }
+      if (!password || typeof password !== 'string') {
+        throw new ValidationError('password is required');
+      }
+
+      const userAgent = req.headers['user-agent'] as string | undefined;
+      const ipAddress = (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim()
+        || req.socket?.remoteAddress;
+
+      const result = await acceptInvitation(
+        token,
+        { full_name, password, phone },
+        userAgent,
+        ipAddress,
+      );
+
+      res.status(HTTP_STATUS.CREATED).json(result);
+    } catch (err) {
+      next(err);
+    }
+  });
+
+  // ── GET /invitations (Protected — owner/admin only) ──
+  router.get('/invitations', authMiddleware, async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const auth = req.auth!;
+
+      if (!['owner', 'admin'].includes(auth.role)) {
+        throw new ForbiddenError('Only owner or admin can view invitations');
+      }
+
+      const invitations = await listInvitations(auth.tenant_id);
+      res.json({ invitations });
+    } catch (err) {
+      next(err);
+    }
+  });
+
+  // ── DELETE /invitations/:id (Protected — owner/admin only) ──
+  router.delete('/invitations/:id', authMiddleware, async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const auth = req.auth!;
+
+      if (!['owner', 'admin'].includes(auth.role)) {
+        throw new ForbiddenError('Only owner or admin can revoke invitations');
+      }
+
+      await revokeInvitation(req.params.id, auth.tenant_id);
+      res.json({ revoked: true });
     } catch (err) {
       next(err);
     }
