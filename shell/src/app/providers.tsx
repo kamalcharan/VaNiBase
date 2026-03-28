@@ -1,7 +1,7 @@
 'use client';
 
 import type { ReactNode } from 'react';
-import { ShellConfigProvider, type ShellConfig } from '../lib/shell-config';
+import { ShellConfigProvider } from '../lib/shell-config';
 import { AuthProvider } from '../context/auth-provider';
 import { ThemeProvider } from '../components/theme-provider';
 
@@ -9,18 +9,22 @@ import { ThemeProvider } from '../components/theme-provider';
  * Provider nesting order (critical):
  *   ShellConfigProvider → AuthProvider → ThemeProvider
  *
- * ShellConfigProvider is outermost — AuthProvider may need apiUrl from config.
- * AuthProvider before ThemeProvider — tenant.theme_id sets initial theme after login.
+ * Config is loaded client-side via require() to preserve non-serializable
+ * values (e.g., pages.login component references) that would be stripped
+ * at the Server Component → Client Component serialization boundary.
  */
-export function Providers({
-  config,
-  children,
-}: {
-  config: ShellConfig;
-  children: ReactNode;
-}) {
+let productConfig;
+try {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  productConfig = require('@product-config').default;
+} catch {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  productConfig = require('../lib/default-product-config').default;
+}
+
+export function Providers({ children }: { children: ReactNode }) {
   return (
-    <ShellConfigProvider config={config}>
+    <ShellConfigProvider config={productConfig}>
       <AuthProvider>
         <ThemeProvider>
           {children}
