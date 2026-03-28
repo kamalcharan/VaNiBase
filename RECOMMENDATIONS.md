@@ -39,3 +39,76 @@ Expired invitations are not automatically marked as `'expired'` — they remain 
 ### Max Invitation Limits
 
 The batch invite endpoint does not enforce a maximum number of invitations per request or per tenant. Consider adding a configurable limit (e.g., max 50 per request) to prevent abuse, especially before email dispatch is implemented.
+
+## Password Management Endpoints
+
+### Password Validation
+
+Password validation is currently `length >= 8` only, matching the existing registration rule. Consider adding strength requirements in a future pass (uppercase, lowercase, digit, special character) via a shared `validatePassword()` utility.
+
+### Forgot Password — Email Not Implemented
+
+The `/forgot-password` endpoint returns the raw reset token in the response (MVP). In production, this token must be sent via email and the endpoint should always return a generic message regardless of whether the user exists (to prevent enumeration). The current MVP returns the token directly only when a user is found.
+
+### Reset Token Cleanup
+
+Used and expired password reset tokens remain in `VN_password_resets` indefinitely. Consider a periodic cleanup function to delete tokens older than a configurable retention period (e.g., 30 days).
+
+### Change Password — Session Preservation
+
+`/change-password` does not revoke existing sessions after a password change. This is intentional — the user is already authenticated and initiated the change. `/reset-password` does revoke all sessions (force re-login) since it indicates the password may have been compromised.
+
+## Tenant Profile Endpoint
+
+### CORS — PATCH Method Added
+
+`PATCH` was added to the CORS `methods` whitelist in `server.ts`. Previously only `GET, POST, PUT, DELETE` were allowed, which would have blocked the `PATCH /api/v1/tenant/profile` endpoint from browser clients.
+
+### Upsert Pattern
+
+The update uses a two-step approach: first `INSERT ... ON CONFLICT DO NOTHING` to ensure a row exists, then `UPDATE` with only the provided fields. This handles the edge case where a tenant was created without a profile row (e.g., via direct DB insert or a migration issue).
+
+### Expandability
+
+Only `name`, `logo_url`, and `theme_id` are exposed for update. `VN_tenant_profiles` has many more columns (address, tax IDs, branding, etc.). Additional fields can be added to the endpoint as product requirements expand — the dynamic SET clause pattern supports this cleanly.
+
+## Onboarding API
+
+### Step Definitions — Shared Config
+
+Onboarding step definitions live in `shared/onboarding-steps.ts` (shared between framework and shell). The default steps are KI-Prime's: `user_profile` (mandatory), `business_profile` (mandatory), `theme_selection`, `invite_team`, `risk_preferences`, `import_data` (all optional). Only mandatory steps get DB rows in `VN_tenant_onboarding`. Products override the default by providing their own `onboarding.steps` in their `shell.config.ts`.
+
+### Step Ordering
+
+The `GET /onboarding/status` endpoint sorts pending steps using a hardcoded order array (`user_profile` → `business_profile`). If products add custom mandatory steps, they should be added to the `STEP_ORDER` array in `framework/onboarding/service.ts`, or the ordering logic should be refactored to use a `sort_order` field from the step definition.
+
+### onboarding_complete in /me
+
+`GET /auth/me` now includes `onboarding_complete: boolean` in the `tenant` object. This is computed per-request via a `COUNT(*)` query on `VN_tenant_onboarding`. If this becomes a performance concern (unlikely — it's a small table with an index on `tenant_id`), consider caching the result or denormalizing it onto `VN_tenants`.
+
+### Product-Specific Steps
+
+The framework seeds `DEFAULT_ONBOARDING_STEPS` from `shared/onboarding-steps.ts` during registration. Products that need different steps should provide their own step list via their server entry point. Currently the framework's `register()` function directly imports the default — a future improvement could accept the step list as a parameter or read it from a product config registry.
+
+## Onboarding Shell UI
+
+### Step Placeholders
+
+The onboarding wizard renders placeholder `<div>` elements for each step. Products (KI-Prime, KaalaDristi) must replace these with real form components. The `OnboardingStepDef.component` field stores the intended component name (e.g., `UserProfileForm`). Products should register a component map and render the real form based on `step.component`.
+
+### Route Structure
+
+The onboarding page lives at `shell/src/app/(onboarding)/onboarding/page.tsx` using a Next.js route group `(onboarding)`. This keeps it separate from the `(dashboard)` group so it gets its own layout (no sidebar/header) and is exempt from the onboarding redirect check in the dashboard layout.
+
+### Redirect Logic in Dashboard Layout
+
+The onboarding redirect is implemented in `(dashboard)/layout.tsx`:
+- Owner + incomplete → redirect to `/onboarding`
+- Non-owner + incomplete → render `OnboardingPendingBlock` (full-screen overlay)
+- Complete → render normal dashboard
+
+The check uses `tenant.onboarding_complete` from `/auth/me` (already in AuthContext). No additional API call is needed for the redirect decision.
+
+### OnboardingPendingBlock — Polling
+
+The pending block requires the user to click "Refresh" to re-check status. An auto-poll (e.g., every 30 seconds) could improve UX but was omitted to keep it simple. Products can add polling if desired.

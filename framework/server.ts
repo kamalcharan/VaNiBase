@@ -24,6 +24,8 @@ import { createRecipesRouter } from './routes/recipes.js';
 import { registerSkillsRoute } from './routes/skills.js';
 import { jobsRouter } from './routes/jobs.js';
 import { createAuthRouter } from './routes/auth.js';
+import { createTenantRouter } from './routes/tenant.js';
+import { createOnboardingRouter } from './routes/onboarding.js';
 import { authMiddleware } from './gateway/auth.js';
 import { tenantContext } from './gateway/tenant-context.js';
 import { rateLimitMiddleware } from './middleware/rate-limiter.js';
@@ -68,7 +70,7 @@ async function main(): Promise<void> {
 
   app.use(cors({
     origin: process.env.CORS_ORIGIN || 'http://localhost:3000',
-    methods: ['GET', 'POST', 'PUT', 'DELETE'],
+    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'],
     allowedHeaders: ['Content-Type', 'Authorization', 'X-Dev-Tenant-Id', 'X-Dev-User-Id'],
   }));
   app.use(express.json());
@@ -88,6 +90,8 @@ async function main(): Promise<void> {
   protectedRouter.use(authMiddleware);
   protectedRouter.use(tenantContext);
   protectedRouter.use(rateLimitMiddleware);
+  protectedRouter.use('/tenant', createTenantRouter());
+  protectedRouter.use('/onboarding', createOnboardingRouter());
   protectedRouter.use('/chat', createChatRouter(orchestrator));
   registerSkillsRoute(protectedRouter, orchestrator);
   protectedRouter.use(jobsRouter);

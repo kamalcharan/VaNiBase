@@ -8,6 +8,9 @@
  * POST /api/v1/auth/sessions/revoke  — Revoke specific sessions (password-based or Bearer)
  * PATCH /api/v1/auth/preferences     — Update user preferences (Bearer required)
  * GET   /api/v1/auth/me              — Return current user profile (Bearer required)
+ * POST  /api/v1/auth/change-password  — Change password (Bearer required)
+ * POST  /api/v1/auth/forgot-password  — Request password reset token (public)
+ * POST  /api/v1/auth/reset-password   — Reset password with token (public)
  * POST  /api/v1/auth/invite          — Send batch invitations (owner/admin only)
  * POST  /api/v1/auth/invite/accept   — Accept an invitation (public, creates new user)
  * GET   /api/v1/auth/invitations     — List tenant invitations (owner/admin only)
@@ -20,10 +23,11 @@ import {
   register, login, refresh, logout, me,
   verifyCredentials, revokeSessions, updatePreferences,
   createInvitations, acceptInvitation, listInvitations, revokeInvitation,
+  changePassword, forgotPassword, resetPassword,
 } from '../auth/index.js';
 import { authMiddleware } from '../gateway/auth.js';
 import { HTTP_STATUS } from '../../shared/constants/index.js';
-import { ValidationError, ForbiddenError } from '../errors/index.js';
+import { ValidationError, AuthenticationError, ForbiddenError } from '../errors/index.js';
 
 export function createAuthRouter(): Router {
   const router = Router();
@@ -223,6 +227,67 @@ export function createAuthRouter(): Router {
       const auth = req.auth!;
       const result = await me(auth.sub, auth.tenant_id);
       res.json(result);
+    } catch (err) {
+      next(err);
+    }
+  });
+
+  // ── POST /change-password (Protected — Bearer token required) ──
+  router.post('/change-password', authMiddleware, async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const auth = req.auth!;
+      const { current_password, new_password } = req.body || {};
+
+      if (!current_password || typeof current_password !== 'string') {
+        throw new ValidationError('current_password is required');
+      }
+      if (!new_password || typeof new_password !== 'string') {
+        throw new ValidationError('new_password is required');
+      }
+
+      await changePassword(auth.sub, auth.tenant_id, current_password, new_password);
+      res.json({ message: 'Password changed successfully' });
+    } catch (err) {
+      next(err);
+    }
+  });
+
+  // ── POST /forgot-password (Public) ──
+  router.post('/forgot-password', async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { email } = req.body || {};
+
+      if (!email || typeof email !== 'string') {
+        throw new ValidationError('email is required');
+      }
+
+      const token = await forgotPassword(email);
+
+      if (token) {
+        // MVP: return token directly (email dispatch is future)
+        res.json({ token });
+      } else {
+        res.json({ message: 'If an account exists, a reset token has been generated' });
+      }
+    } catch (err) {
+      next(err);
+    }
+  });
+
+  // ── POST /reset-password (Public) ──
+  router.post('/reset-password', async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { token, new_password } = req.body || {};
+
+      if (!token || typeof token !== 'string') {
+        throw new ValidationError('token is required');
+      }
+      if (!new_password || typeof new_password !== 'string') {
+        throw new ValidationError('new_password is required');
+      }
+
+      await resetPassword(token, new_password);
+      res.json({ message: 'Password reset successful' });
     } catch (err) {
       next(err);
     }

@@ -1,4 +1,8 @@
 import type { ComponentType } from 'react';
+import type { OnboardingStepDef } from '../../../shared/onboarding-steps.js';
+
+// Re-export for convenience
+export type { OnboardingStepDef };
 
 // ── Config interfaces (shared between server and client) ──
 
@@ -76,6 +80,11 @@ export interface ShellConfig {
   /** Entity type definitions for drill-down navigation.
    *  data-table uses this to know where to navigate on row click. */
   entities?: EntityConfig[];
+  /** Onboarding wizard step definitions.
+   *  Only mandatory steps are tracked in VN_tenant_onboarding. */
+  onboarding?: {
+    steps: OnboardingStepDef[];
+  };
   /** Custom page overrides — products can replace default pages with their own */
   pages?: {
     login?: ComponentType;
@@ -84,10 +93,15 @@ export interface ShellConfig {
 
 // ── Default config (framework demo) ──
 
+import { DEFAULT_ONBOARDING_STEPS } from '../../../shared/onboarding-steps.js';
+
 export const DEFAULT_SHELL_CONFIG: ShellConfig = {
   product: {
     name: 'VaNi',
     tagline: 'Product Framework',
   },
   recipes: [],
+  onboarding: {
+    steps: DEFAULT_ONBOARDING_STEPS,
+  },
 };
