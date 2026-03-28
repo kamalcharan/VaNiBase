@@ -19,6 +19,10 @@ export {
   REFRESH_TOKEN_SECONDS,
 } from './tokens.js';
 
+// Invitations
+export { createInvitations, acceptInvitation, listInvitations, revokeInvitation } from './invitations.js';
+export type { InvitationInput, InvitationResult } from './invitations.js';
+
 // Types
 export type {
   RegisterRequest,
