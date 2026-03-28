@@ -71,3 +71,21 @@ The update uses a two-step approach: first `INSERT ... ON CONFLICT DO NOTHING` t
 ### Expandability
 
 Only `name`, `logo_url`, and `theme_id` are exposed for update. `VN_tenant_profiles` has many more columns (address, tax IDs, branding, etc.). Additional fields can be added to the endpoint as product requirements expand — the dynamic SET clause pattern supports this cleanly.
+
+## Onboarding API
+
+### Step Definitions — Shared Config
+
+Onboarding step definitions live in `shared/onboarding-steps.ts` (shared between framework and shell). The default steps are KI-Prime's: `user_profile` (mandatory), `business_profile` (mandatory), `theme_selection`, `invite_team`, `risk_preferences`, `import_data` (all optional). Only mandatory steps get DB rows in `VN_tenant_onboarding`. Products override the default by providing their own `onboarding.steps` in their `shell.config.ts`.
+
+### Step Ordering
+
+The `GET /onboarding/status` endpoint sorts pending steps using a hardcoded order array (`user_profile` → `business_profile`). If products add custom mandatory steps, they should be added to the `STEP_ORDER` array in `framework/onboarding/service.ts`, or the ordering logic should be refactored to use a `sort_order` field from the step definition.
+
+### onboarding_complete in /me
+
+`GET /auth/me` now includes `onboarding_complete: boolean` in the `tenant` object. This is computed per-request via a `COUNT(*)` query on `VN_tenant_onboarding`. If this becomes a performance concern (unlikely — it's a small table with an index on `tenant_id`), consider caching the result or denormalizing it onto `VN_tenants`.
+
+### Product-Specific Steps
+
+The framework seeds `DEFAULT_ONBOARDING_STEPS` from `shared/onboarding-steps.ts` during registration. Products that need different steps should provide their own step list via their server entry point. Currently the framework's `register()` function directly imports the default — a future improvement could accept the step list as a parameter or read it from a product config registry.

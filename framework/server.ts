@@ -25,6 +25,7 @@ import { registerSkillsRoute } from './routes/skills.js';
 import { jobsRouter } from './routes/jobs.js';
 import { createAuthRouter } from './routes/auth.js';
 import { createTenantRouter } from './routes/tenant.js';
+import { createOnboardingRouter } from './routes/onboarding.js';
 import { authMiddleware } from './gateway/auth.js';
 import { tenantContext } from './gateway/tenant-context.js';
 import { rateLimitMiddleware } from './middleware/rate-limiter.js';
@@ -90,6 +91,7 @@ async function main(): Promise<void> {
   protectedRouter.use(tenantContext);
   protectedRouter.use(rateLimitMiddleware);
   protectedRouter.use('/tenant', createTenantRouter());
+  protectedRouter.use('/onboarding', createOnboardingRouter());
   protectedRouter.use('/chat', createChatRouter(orchestrator));
   registerSkillsRoute(protectedRouter, orchestrator);
   protectedRouter.use(jobsRouter);

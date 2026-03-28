@@ -8,6 +8,8 @@
  */
 
 import { getPool } from '../db/index.js';
+import { seedOnboardingSteps, isOnboardingComplete } from '../onboarding/service.js';
+import { DEFAULT_ONBOARDING_STEPS } from '../../shared/onboarding-steps.js';
 import { hashPassword, verifyPassword } from './passwords.js';
 import {
   signAccessToken,
@@ -230,6 +232,9 @@ export async function register(
        VALUES ($1, 'free', 'Free', 'active', 1, 1)`,
       [tenant.id],
     );
+
+    // 6. Seed mandatory onboarding steps
+    await seedOnboardingSteps(client, tenant.id, DEFAULT_ONBOARDING_STEPS);
 
     return { user, tenant };
   });
@@ -463,6 +468,7 @@ export async function me(userId: string, tenantId: string): Promise<Record<strin
 
   const row = rows[0];
   const roles = await getUserRoles(userId);
+  const onboardingComplete = await isOnboardingComplete(tenantId);
 
   return {
     user: {
@@ -483,6 +489,7 @@ export async function me(userId: string, tenantId: string): Promise<Record<strin
       logo_url: row.tenant_logo_url,
       brand_color: row.tenant_brand_color,
       status: row.tenant_status,
+      onboarding_complete: onboardingComplete,
       subscription: {
         plan_code: row.plan_code || 'free',
         max_sessions: row.max_sessions || 1,
