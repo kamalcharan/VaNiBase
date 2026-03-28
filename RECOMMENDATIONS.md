@@ -1,22 +1,14 @@
 # Migration Recommendations — 003 through 007
 
-## 007_vn_schema_updates.sql — Columns Already Exist
+## 007_vn_schema_updates.sql — Columns Already Exist (RESOLVED)
 
-The three columns added in migration 007 already exist in `001_vn_foundation.sql`:
+Migration 007 now uses `ALTER COLUMN ... TYPE VARCHAR(500)` for `avatar_url` and `logo_url` (which exist as `TEXT` in 001), and keeps `ADD COLUMN IF NOT EXISTS` for `theme_id` (which may or may not exist depending on migration state).
 
-| Column | Existing Type (001) | Requested Type (007) |
-|--------|-------------------|---------------------|
-| `VN_users.avatar_url` | `TEXT` | `VARCHAR(500)` |
-| `VN_tenant_profiles.logo_url` | `TEXT` | `VARCHAR(500)` |
-| `VN_tenant_profiles.theme_id` | `VARCHAR(50) DEFAULT 'ocean'` | `VARCHAR(50) NULL` |
+## 003_vn_invitations.sql — role_id Default 'member' Not Seeded (OPEN QUESTION)
 
-**Impact**: `ADD COLUMN IF NOT EXISTS` will silently skip these since the columns already exist. The type difference (`TEXT` vs `VARCHAR(500)`) will not cause an error, but it also won't change the type. If the PRD intends `VARCHAR(500)` as the canonical type, the existing columns in 001 should be updated, or 007 should use `ALTER COLUMN ... TYPE VARCHAR(500)` instead.
+The `role_id` column is `VARCHAR(50)` with a default of `'member'`, but the only seeded roles in `VN_roles` (from 001) are: `superadmin`, `owner`, `admin`. There is no `member` role seeded anywhere in the framework migrations or seed files.
 
-**Recommendation**: If `VARCHAR(500)` is required for validation purposes, update the column definitions in `001_vn_foundation.sql` directly (since the product hasn't shipped yet), or convert 007 to use `ALTER TABLE ... ALTER COLUMN ... TYPE VARCHAR(500)`.
-
-## 003_vn_invitations.sql — role_id is a String, Not a FK
-
-The `role_id` column is `VARCHAR(50)` with a default of `'member'`, but there is no `'member'` role seeded in `VN_roles`. This is likely intentional (products seed their own roles), but worth confirming that each product seeds a `member` role before the invitation flow is used.
+**Question**: Should a `member` role be seeded in the framework, or is it expected that each product seeds its own `member` role before the invitation flow is used? If the default should match an existing role code (e.g. `admin`), the DEFAULT in 003 should be updated. Leaving as `'member'` for now pending clarification.
 
 ## 006_vn_error_log — Retention Policy
 

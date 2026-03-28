@@ -1,8 +1,8 @@
 -- ============================================================================
 -- VaNiBase Migration: 007_vn_schema_updates.sql
 -- ============================================================================
--- Scope: Schema additions to existing tables
--- Alters: VN_users (avatar_url), VN_tenant_profiles (logo_url, theme_id)
+-- Scope: Schema type changes and additions to existing tables
+-- Alters: VN_users (avatar_url type), VN_tenant_profiles (logo_url type, theme_id)
 -- Depends on: 001_vn_foundation.sql
 -- ============================================================================
 -- Version: 1.0.0
@@ -13,16 +13,16 @@
 BEGIN;
 
 -- ────────────────────────────────────────────────────────────────────────────
--- 1. VN_users — Add avatar_url
+-- 1. VN_users — Change avatar_url from TEXT to VARCHAR(500)
 -- ────────────────────────────────────────────────────────────────────────────
 
-ALTER TABLE VN_users ADD COLUMN IF NOT EXISTS avatar_url VARCHAR(500) NULL;
+ALTER TABLE VN_users ALTER COLUMN avatar_url TYPE VARCHAR(500);
 
 -- ────────────────────────────────────────────────────────────────────────────
--- 2. VN_tenant_profiles — Add logo_url and theme_id
+-- 2. VN_tenant_profiles — Change logo_url from TEXT to VARCHAR(500), add theme_id
 -- ────────────────────────────────────────────────────────────────────────────
 
-ALTER TABLE VN_tenant_profiles ADD COLUMN IF NOT EXISTS logo_url VARCHAR(500) NULL;
+ALTER TABLE VN_tenant_profiles ALTER COLUMN logo_url TYPE VARCHAR(500);
 ALTER TABLE VN_tenant_profiles ADD COLUMN IF NOT EXISTS theme_id VARCHAR(50) NULL;
 
 -- ────────────────────────────────────────────────────────────────────────────
