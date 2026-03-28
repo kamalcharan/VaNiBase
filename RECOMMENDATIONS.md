@@ -1,4 +1,4 @@
-# Migration Recommendations — 003 through 007
+# Recommendations
 
 ## 007_vn_schema_updates.sql — Columns Already Exist (RESOLVED)
 
@@ -11,3 +11,13 @@ The default role for invitations is now `'user'`, seeded in `008_vn_seed_user_ro
 ## 006_vn_error_log — Retention Policy
 
 The `VN_error_log` table has no built-in cleanup mechanism. Consider adding a cleanup function (similar to `vn_cleanup_expired_sessions`) to periodically prune old error logs beyond a configurable retention period.
+
+## Error Handling Framework
+
+### ErrorBoundary Styling
+
+The `ErrorBoundary` uses inline styles with CSS variables (`var(--color-*)`) rather than Tailwind classes because it's a class component that renders outside normal app context when errors occur. Inline styles with CSS variables ensure the fallback UI is always theme-aware without depending on Tailwind's class compilation being available in error states.
+
+### Error Logger — Console vs DB
+
+In development mode (`NODE_ENV=development`), errors are logged to console only. In all other environments, errors are inserted into `VN_error_log`. If the DB pool is not initialized (stub mode), the logger falls back to console silently. The DB insert is fire-and-forget — it never blocks or throws.
