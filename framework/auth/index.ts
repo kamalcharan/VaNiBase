@@ -19,6 +19,9 @@ export {
   REFRESH_TOKEN_SECONDS,
 } from './tokens.js';
 
+// Password Management
+export { changePassword, forgotPassword, resetPassword } from './password-management.js';
+
 // Invitations
 export { createInvitations, acceptInvitation, listInvitations, revokeInvitation } from './invitations.js';
 export type { InvitationInput, InvitationResult } from './invitations.js';

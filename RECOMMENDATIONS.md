@@ -39,3 +39,21 @@ Expired invitations are not automatically marked as `'expired'` — they remain 
 ### Max Invitation Limits
 
 The batch invite endpoint does not enforce a maximum number of invitations per request or per tenant. Consider adding a configurable limit (e.g., max 50 per request) to prevent abuse, especially before email dispatch is implemented.
+
+## Password Management Endpoints
+
+### Password Validation
+
+Password validation is currently `length >= 8` only, matching the existing registration rule. Consider adding strength requirements in a future pass (uppercase, lowercase, digit, special character) via a shared `validatePassword()` utility.
+
+### Forgot Password — Email Not Implemented
+
+The `/forgot-password` endpoint returns the raw reset token in the response (MVP). In production, this token must be sent via email and the endpoint should always return a generic message regardless of whether the user exists (to prevent enumeration). The current MVP returns the token directly only when a user is found.
+
+### Reset Token Cleanup
+
+Used and expired password reset tokens remain in `VN_password_resets` indefinitely. Consider a periodic cleanup function to delete tokens older than a configurable retention period (e.g., 30 days).
+
+### Change Password — Session Preservation
+
+`/change-password` does not revoke existing sessions after a password change. This is intentional — the user is already authenticated and initiated the change. `/reset-password` does revoke all sessions (force re-login) since it indicates the password may have been compromised.
