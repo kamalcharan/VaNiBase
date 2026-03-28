@@ -10,9 +10,9 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const router = useRouter();
 
   useEffect(() => {
-    if (!isLoading && !isAuthenticated) {
-      router.replace('/login');
-    }
+ //   if (!isLoading && !isAuthenticated) {
+   //   router.replace('/login');
+  //  }
   }, [isAuthenticated, isLoading, router]);
 
   if (isLoading) {
@@ -23,9 +23,9 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     );
   }
 
-  if (!isAuthenticated) {
-    return null;
-  }
+ // if (!isAuthenticated) {
+  //  return null;
+ // }
 
   return <ShellLayout>{children}</ShellLayout>;
 }
