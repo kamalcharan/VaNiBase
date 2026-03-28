@@ -11,7 +11,7 @@ import Modal from '../../../components/vdf/modal';
 
 export default function LoginPage() {
   const { login, revokeSessions, isAuthenticated } = useAuth();
-  const { product } = useShellConfig();
+  const { product, pages } = useShellConfig();
   const router = useRouter();
 
   const [email, setEmail] = useState('');
@@ -23,6 +23,12 @@ export default function LoginPage() {
   const [sessionLimit, setSessionLimit] = useState<SessionLimitResponse | null>(null);
   const [selectedSessions, setSelectedSessions] = useState<Set<string>>(new Set());
   const [revokingLoading, setRevokingLoading] = useState(false);
+
+  // Product can override the entire login page
+  if (pages?.login) {
+    const CustomLogin = pages.login;
+    return <CustomLogin />;
+  }
 
   // Redirect if already authenticated
   if (isAuthenticated) {
