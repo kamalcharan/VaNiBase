@@ -89,3 +89,26 @@ The `GET /onboarding/status` endpoint sorts pending steps using a hardcoded orde
 ### Product-Specific Steps
 
 The framework seeds `DEFAULT_ONBOARDING_STEPS` from `shared/onboarding-steps.ts` during registration. Products that need different steps should provide their own step list via their server entry point. Currently the framework's `register()` function directly imports the default — a future improvement could accept the step list as a parameter or read it from a product config registry.
+
+## Onboarding Shell UI
+
+### Step Placeholders
+
+The onboarding wizard renders placeholder `<div>` elements for each step. Products (KI-Prime, KaalaDristi) must replace these with real form components. The `OnboardingStepDef.component` field stores the intended component name (e.g., `UserProfileForm`). Products should register a component map and render the real form based on `step.component`.
+
+### Route Structure
+
+The onboarding page lives at `shell/src/app/(onboarding)/onboarding/page.tsx` using a Next.js route group `(onboarding)`. This keeps it separate from the `(dashboard)` group so it gets its own layout (no sidebar/header) and is exempt from the onboarding redirect check in the dashboard layout.
+
+### Redirect Logic in Dashboard Layout
+
+The onboarding redirect is implemented in `(dashboard)/layout.tsx`:
+- Owner + incomplete → redirect to `/onboarding`
+- Non-owner + incomplete → render `OnboardingPendingBlock` (full-screen overlay)
+- Complete → render normal dashboard
+
+The check uses `tenant.onboarding_complete` from `/auth/me` (already in AuthContext). No additional API call is needed for the redirect decision.
+
+### OnboardingPendingBlock — Polling
+
+The pending block requires the user to click "Refresh" to re-check status. An auto-poll (e.g., every 30 seconds) could improve UX but was omitted to keep it simple. Products can add polling if desired.

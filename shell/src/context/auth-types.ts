@@ -20,6 +20,7 @@ export interface AuthTenant {
   name: string;
   display_name: string | null;
   status: string;
+  onboarding_complete?: boolean;
   theme_id?: string | null;
   logo_url?: string | null;
   brand_color?: string | null;
