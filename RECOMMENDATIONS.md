@@ -57,3 +57,17 @@ Used and expired password reset tokens remain in `VN_password_resets` indefinite
 ### Change Password — Session Preservation
 
 `/change-password` does not revoke existing sessions after a password change. This is intentional — the user is already authenticated and initiated the change. `/reset-password` does revoke all sessions (force re-login) since it indicates the password may have been compromised.
+
+## Tenant Profile Endpoint
+
+### CORS — PATCH Method Added
+
+`PATCH` was added to the CORS `methods` whitelist in `server.ts`. Previously only `GET, POST, PUT, DELETE` were allowed, which would have blocked the `PATCH /api/v1/tenant/profile` endpoint from browser clients.
+
+### Upsert Pattern
+
+The update uses a two-step approach: first `INSERT ... ON CONFLICT DO NOTHING` to ensure a row exists, then `UPDATE` with only the provided fields. This handles the edge case where a tenant was created without a profile row (e.g., via direct DB insert or a migration issue).
+
+### Expandability
+
+Only `name`, `logo_url`, and `theme_id` are exposed for update. `VN_tenant_profiles` has many more columns (address, tax IDs, branding, etc.). Additional fields can be added to the endpoint as product requirements expand — the dynamic SET clause pattern supports this cleanly.
