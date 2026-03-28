@@ -1,9 +1,8 @@
 -- ============================================================================
--- VaNiBase Migration: 003_vn_invitations.sql
+-- VaNiBase Migration: 008_vn_seed_user_role.sql
 -- ============================================================================
--- Scope: Team invitation system for multi-tenant onboarding
--- Tables: VN_invitations
--- Depends on: 001_vn_foundation.sql (VN_tenants, VN_users must exist)
+-- Scope: Seed the default 'user' role for invited team members
+-- Depends on: 001_vn_foundation.sql (VN_roles must exist)
 -- ============================================================================
 -- Version: 1.0.0
 -- Date: March 2026
@@ -13,38 +12,22 @@
 BEGIN;
 
 -- ────────────────────────────────────────────────────────────────────────────
--- 1. VN_invitations — Team member invitations per tenant
+-- Seed: User Role (default for invited team members)
 -- ────────────────────────────────────────────────────────────────────────────
--- Tracks invitations sent by tenant admins/owners to new team members.
--- token_hash stores a hashed version of the invite token sent via email.
--- Status lifecycle: pending → accepted | revoked | expired
 
-CREATE TABLE VN_invitations (
-    id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    tenant_id       UUID NOT NULL REFERENCES VN_tenants(id) ON DELETE CASCADE,
-    invited_by      UUID NOT NULL REFERENCES VN_users(id) ON DELETE CASCADE,
-    email           VARCHAR(255) NOT NULL,
-    role_id         VARCHAR(50) NOT NULL DEFAULT 'user',
-    token_hash      VARCHAR(255) NOT NULL UNIQUE,
-    status          VARCHAR(20) NOT NULL DEFAULT 'pending'
-                    CHECK (status IN ('pending', 'accepted', 'revoked', 'expired')),
-    expires_at      TIMESTAMPTZ NOT NULL,
-    accepted_at     TIMESTAMPTZ,
-    created_at      TIMESTAMPTZ NOT NULL DEFAULT now()
-);
-
-CREATE INDEX idx_invitations_token ON VN_invitations (token_hash);
-CREATE INDEX idx_invitations_tenant ON VN_invitations (tenant_id, status);
-
-COMMENT ON TABLE VN_invitations IS 'Team member invitations. An admin/owner invites a user by email with a specific role. Token is hashed for security.';
+INSERT INTO VN_roles (id, tenant_id, code, name, description, is_system, sort_order) VALUES
+    ('00000000-0000-0000-0000-000000000004', NULL, 'user', 'User',
+     'Default role for invited team members.',
+     false, 4)
+ON CONFLICT DO NOTHING;
 
 -- ────────────────────────────────────────────────────────────────────────────
 -- Record this migration
 -- ────────────────────────────────────────────────────────────────────────────
 
 INSERT INTO VN_migrations (filename, checksum, applied_by, notes) VALUES
-    ('003_vn_invitations.sql', md5('003_vn_invitations_v1.0.0'), 'manual',
-     'Invitations: team member invitation system with token-based acceptance')
+    ('008_vn_seed_user_role.sql', md5('008_vn_seed_user_role_v1.0.0'), 'manual',
+     'Seed: user role for invited team members')
 ON CONFLICT (filename) DO NOTHING;
 
 COMMIT;
@@ -52,5 +35,5 @@ COMMIT;
 -- ============================================================================
 -- Post-migration verification queries (run manually to verify)
 -- ============================================================================
--- SELECT table_name FROM information_schema.tables WHERE table_name LIKE 'vn_%' ORDER BY table_name;
+-- SELECT * FROM VN_roles WHERE code = 'user';
 -- SELECT * FROM VN_migrations ORDER BY applied_at;
