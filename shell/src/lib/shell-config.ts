@@ -79,6 +79,10 @@ export interface ShellConfig {
   /** Entity type definitions for drill-down navigation.
    *  data-table uses this to know where to navigate on row click. */
   entities?: EntityConfig[];
+  /** Custom page overrides — products can replace default pages with their own */
+  pages?: {
+    login?: React.ComponentType;
+  };
 }
 
 // ── Default config (framework demo) ──
