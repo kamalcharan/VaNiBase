@@ -12,6 +12,7 @@ import Modal from '../../../components/vdf/modal';
 export default function LoginPage() {
   const { login, revokeSessions, isAuthenticated } = useAuth();
   const { product, pages } = useShellConfig();
+  console.log('[LOGIN] product:', product.name, '| pages:', pages);
   const router = useRouter();
 
   const [email, setEmail] = useState('');
