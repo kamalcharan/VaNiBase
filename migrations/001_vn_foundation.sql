@@ -168,7 +168,7 @@ COMMENT ON COLUMN VN_users.locked_until IS 'If set and in the future, login is b
 -- ────────────────────────────────────────────────────────────────────────────
 -- 5. VN_roles — Role definitions (system + product-level)
 -- ────────────────────────────────────────────────────────────────────────────
--- System roles (tenant_id IS NULL): superadmin, owner, admin
+-- System    (tenant_id IS NULL): superadmin, owner, admin
 --   - These exist globally and are seeded by VaNiBase.
 -- Product roles (tenant_id IS NULL, is_system = false): advisor, trader, etc.
 --   - These are seeded by each product's migration. Convention-based.
