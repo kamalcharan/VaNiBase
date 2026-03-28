@@ -28,12 +28,9 @@ In development mode (`NODE_ENV=development`), errors are logged to console only.
 
 The invite endpoint returns raw tokens in the response but does not send invitation emails. A future integration should send emails containing an accept link with the token. Until then, the caller (product app) is responsible for email dispatch.
 
-### Flow B — Cross-Tenant User Duplication
+### Multi-Tenancy Model — Strict Isolation (Model 1)
 
-When an existing user (authenticated via Bearer) accepts an invitation to a different tenant, a new `VN_users` row is created in the inviting tenant. The `password_hash` is copied from the existing account. This means:
-- The user has separate accounts per tenant (consistent with the `UNIQUE(tenant_id, email)` design)
-- Password changes on one tenant do not propagate to the other
-- If a unified cross-tenant identity is needed in the future, a `VN_user_identities` linking table would be required
+Multi-tenancy model is strict isolation (Model 1). One user row per tenant. No cross-tenant user linking. `invite/accept` always creates a new user. The same email can exist independently in multiple tenants (enforced by `UNIQUE(tenant_id, email)` on `VN_users`). Each tenant's user has their own password, preferences, and role assignments.
 
 ### Invitation Expiry Cleanup
 

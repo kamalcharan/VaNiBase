@@ -9,7 +9,7 @@
  * PATCH /api/v1/auth/preferences     — Update user preferences (Bearer required)
  * GET   /api/v1/auth/me              — Return current user profile (Bearer required)
  * POST  /api/v1/auth/invite          — Send batch invitations (owner/admin only)
- * POST  /api/v1/auth/invite/accept   — Accept an invitation (public or Bearer)
+ * POST  /api/v1/auth/invite/accept   — Accept an invitation (public, creates new user)
  * GET   /api/v1/auth/invitations     — List tenant invitations (owner/admin only)
  * DELETE /api/v1/auth/invitations/:id — Revoke a pending invitation (owner/admin only)
  */
@@ -255,7 +255,7 @@ export function createAuthRouter(): Router {
     }
   });
 
-  // ── POST /invite/accept (Public or Bearer) ──
+  // ── POST /invite/accept (Public — no auth required) ──
   router.post('/invite/accept', async (req: Request, res: Response, next: NextFunction) => {
     try {
       const { token, full_name, password, phone } = req.body || {};
@@ -263,29 +263,20 @@ export function createAuthRouter(): Router {
       if (!token || typeof token !== 'string') {
         throw new ValidationError('token is required');
       }
+      if (!full_name || typeof full_name !== 'string') {
+        throw new ValidationError('full_name is required');
+      }
+      if (!password || typeof password !== 'string') {
+        throw new ValidationError('password is required');
+      }
 
       const userAgent = req.headers['user-agent'] as string | undefined;
       const ipAddress = (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim()
         || req.socket?.remoteAddress;
 
-      // Check if the user is authenticated (Flow B)
-      let existingUserId: string | undefined;
-      let existingTenantId: string | undefined;
-      const authHeader = req.headers.authorization;
-      if (authHeader?.startsWith('Bearer ')) {
-        try {
-          const { verifyAccessToken } = await import('../auth/tokens.js');
-          const payload = verifyAccessToken(authHeader.slice(7));
-          existingUserId = payload.sub;
-          existingTenantId = payload.tenant_id;
-        } catch {
-          // Invalid token — treat as Flow A
-        }
-      }
-
       const result = await acceptInvitation(
         token,
-        { full_name, password, phone, existingUserId, existingTenantId },
+        { full_name, password, phone },
         userAgent,
         ipAddress,
       );

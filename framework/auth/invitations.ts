@@ -3,7 +3,7 @@
  *
  * Business logic for team member invitations:
  *   - createInvitations (batch invite)
- *   - acceptInvitation (new user or existing user from another tenant)
+ *   - acceptInvitation (always creates a new user — Model 1 strict tenant isolation)
  *   - listInvitations (admin view)
  *   - revokeInvitation
  *
@@ -22,7 +22,7 @@ import {
 } from './tokens.js';
 import type { TokenPair } from './types.js';
 import type { SubscriptionTier } from '../../shared/types/index.js';
-import { ValidationError, NotFoundError, ForbiddenError } from '../errors/index.js';
+import { ValidationError, NotFoundError } from '../errors/index.js';
 
 const INVITATION_EXPIRY_DAYS = 7;
 
@@ -164,19 +164,11 @@ export async function createInvitations(
 }
 
 /**
- * Accept an invitation — Flow A (new user, no Bearer) or Flow B (existing user, Bearer).
+ * Accept an invitation — always creates a new user (Model 1 strict tenant isolation).
  */
 export async function acceptInvitation(
   token: string,
-  opts: {
-    /** Flow A fields */
-    full_name?: string;
-    password?: string;
-    phone?: string;
-    /** Flow B — authenticated user info from Bearer */
-    existingUserId?: string;
-    existingTenantId?: string;
-  },
+  opts: { full_name: string; password: string; phone?: string },
   userAgent?: string,
   ipAddress?: string,
 ): Promise<Record<string, unknown>> {
@@ -205,68 +197,6 @@ export async function acceptInvitation(
 
   if (new Date(invitation.expires_at) < new Date()) {
     throw new ValidationError('Invitation has expired');
-  }
-
-  const isFlowB = !!opts.existingUserId;
-
-  if (isFlowB) {
-    // Flow B — Existing user joining a new tenant
-    return await pool.transaction(async (client) => {
-      // Get existing user's info
-      const { rows: existingRows } = await client.query(
-        'SELECT name, password_hash, avatar_url FROM VN_users WHERE id = $1',
-        [opts.existingUserId],
-      );
-      if (existingRows.length === 0) {
-        throw new NotFoundError('Authenticated user not found');
-      }
-      const existingUser = existingRows[0] as { name: string; password_hash: string; avatar_url: string | null };
-
-      // Create new VN_users row in the inviting tenant
-      const { rows: newUserRows } = await client.query(
-        `INSERT INTO VN_users (tenant_id, email, password_hash, name, avatar_url, is_active, is_email_verified)
-         VALUES ($1, $2, $3, $4, $5, true, true)
-         RETURNING id`,
-        [invitation.tenant_id, invitation.email, existingUser.password_hash, existingUser.name, existingUser.avatar_url],
-      );
-      const newUserId = (newUserRows[0] as { id: string }).id;
-
-      // Assign role
-      const { rows: roleRows } = await client.query(
-        `SELECT id FROM VN_roles WHERE code = $1 AND (tenant_id IS NULL OR tenant_id = $2) LIMIT 1`,
-        [invitation.role_id, invitation.tenant_id],
-      );
-      if (roleRows.length > 0) {
-        await client.query(
-          'INSERT INTO VN_user_roles (user_id, role_id) VALUES ($1, $2)',
-          [newUserId, (roleRows[0] as { id: string }).id],
-        );
-      }
-
-      // Mark invitation accepted
-      await client.query(
-        `UPDATE VN_invitations SET status = 'accepted', accepted_at = now() WHERE id = $1`,
-        [invitation.id],
-      );
-
-      // Get tenant name for response
-      const { rows: tenantRows } = await client.query(
-        'SELECT name FROM VN_tenant_profiles WHERE tenant_id = $1',
-        [invitation.tenant_id],
-      );
-      const tenantName = (tenantRows[0] as { name: string } | undefined)?.name || '';
-
-      auditLog(invitation.tenant_id, newUserId, 'user', 'invitation_accepted', {
-        ipAddress, userAgent, metadata: { flow: 'existing_user', original_user_id: opts.existingUserId },
-      });
-
-      return { accepted: true, tenant_id: invitation.tenant_id, tenant_name: tenantName };
-    });
-  }
-
-  // Flow A — New user
-  if (!opts.full_name || !opts.password) {
-    throw new ValidationError('full_name and password are required for new users');
   }
 
   if (opts.password.length < 8) {
@@ -320,7 +250,7 @@ export async function acceptInvitation(
   const tokens = await issueTokens(result.id, invitation.tenant_id, roles, planCode, result.email, userAgent, ipAddress);
 
   auditLog(invitation.tenant_id, result.id, 'user', 'invitation_accepted', {
-    ipAddress, userAgent, metadata: { flow: 'new_user' },
+    ipAddress, userAgent,
   });
 
   return {
