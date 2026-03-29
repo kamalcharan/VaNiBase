@@ -323,6 +323,12 @@ export async function login(
   );
 
   // --- Session limit check ---
+  // First, purge expired sessions to avoid counting dead tokens
+  await pool.query(
+    'DELETE FROM VN_refresh_tokens WHERE user_id = $1 AND expires_at < NOW()',
+    [user.id],
+  );
+
   const subRow = await pool.query(
     `SELECT max_sessions FROM VN_subscriptions
      WHERE tenant_id = $1 AND is_current = true AND status = 'active'`,
@@ -385,6 +391,12 @@ export async function refresh(
   const payload = verifyRefreshToken(refreshToken);
   const tokenHash = hashToken(refreshToken);
   const pool = getPool();
+
+  // Purge expired sessions for this user on each refresh
+  await pool.query(
+    'DELETE FROM VN_refresh_tokens WHERE user_id = $1 AND expires_at < NOW()',
+    [payload.sub],
+  );
 
   // Find active token
   const { rows } = await pool.query(
@@ -535,13 +547,23 @@ export async function revokeSessions(
 ): Promise<{ revoked: number }> {
   const pool = getPool();
 
-  const result = await pool.query(
-    `UPDATE VN_refresh_tokens
-     SET is_active = false, revoked_at = now(), revoked_reason = 'session_replaced'
-     WHERE id = ANY($1) AND user_id = $2 AND is_active = true
-     RETURNING id`,
-    [sessionIds, userId],
-  );
+  // Support "all" to revoke every active session for this user
+  const revokeAll = sessionIds.length === 1 && sessionIds[0] === 'all';
+  const result = revokeAll
+    ? await pool.query(
+        `UPDATE VN_refresh_tokens
+         SET is_active = false, revoked_at = now(), revoked_reason = 'session_replaced'
+         WHERE user_id = $1 AND is_active = true
+         RETURNING id`,
+        [userId],
+      )
+    : await pool.query(
+        `UPDATE VN_refresh_tokens
+         SET is_active = false, revoked_at = now(), revoked_reason = 'session_replaced'
+         WHERE id = ANY($1) AND user_id = $2 AND is_active = true
+         RETURNING id`,
+        [sessionIds, userId],
+      );
 
   if (result.rows.length > 0) {
     const { rows: userRows } = await pool.query('SELECT tenant_id FROM VN_users WHERE id = $1', [userId]);
