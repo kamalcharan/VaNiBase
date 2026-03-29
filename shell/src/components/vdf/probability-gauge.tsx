@@ -143,7 +143,7 @@ function SingleGauge({ data }: { data: ProbabilityGaugeData }) {
   );
 }
 
-export default function ProbabilityGauge({ data: rawData, label: propLabel, multi }: Props) {
+export default function ProbabilityGauge({ data: rawData, label: propLabel, multi: _multi }: Props) {
   // Handle array data: render multiple gauges side by side
   if (Array.isArray(rawData)) {
     const items = rawData

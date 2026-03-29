@@ -82,6 +82,30 @@ export interface ShellConfig {
   /** Custom page overrides — products can replace default pages with their own */
   pages?: {
     login?: React.ComponentType;
+    register?: React.ComponentType;
+    forgotPassword?: React.ComponentType;
+    resetPassword?: React.ComponentType;
+    inviteAccept?: React.ComponentType;
+    settings?: React.ComponentType;
+    landing?: React.ComponentType;
+  };
+  /** Onboarding wizard step definitions */
+  onboarding?: {
+    steps: { id: string; label: string; mandatory: boolean; component?: string }[];
+  };
+  /** Map of onboarding step component names to React components */
+  onboardingRegistry?: Record<string, React.ComponentType<{ onComplete: () => void; onSkip?: () => void }>>;
+  /** Product-level context providers to wrap around the app */
+  providers?: React.ComponentType<{ children: React.ReactNode }>[];
+  /** Sidebar navigation configuration */
+  sidebar?: {
+    groups: { label: string; items: { id: string; label: string; route: string; icon: string; badge?: number }[]; }[];
+    defaultCollapsed?: boolean;
+  };
+  /** Navbar configuration */
+  navbar?: {
+    showEnvironmentToggle?: boolean;
+    showNotifications?: boolean;
   };
 }
 

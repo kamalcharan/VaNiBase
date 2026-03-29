@@ -12,6 +12,7 @@ export interface AuthUser {
   roles: string[];
   avatar_url?: string | null;
   preferences?: Record<string, unknown>;
+  preferred_theme?: string | null;
 }
 
 export interface AuthTenant {
@@ -38,12 +39,15 @@ export interface AuthTokens {
   expires_in: number;
 }
 
+export type Environment = 'live' | 'test';
+
 export interface AuthState {
   user: AuthUser | null;
   tenant: AuthTenant | null;
   tokens: AuthTokens | null;
   isAuthenticated: boolean;
   isLoading: boolean;
+  environment: Environment;
 }
 
 export interface LoginResponse {

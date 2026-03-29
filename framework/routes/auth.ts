@@ -199,7 +199,7 @@ export function createAuthRouter(): Router {
   // ── PATCH /preferences (Protected — Bearer token required) ──
   router.patch('/preferences', authMiddleware, async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const { theme_override, color_mode, language } = req.body || {};
+      const { theme_override, color_mode, language, preferred_theme } = req.body || {};
 
       if (color_mode && !['light', 'dark', 'system'].includes(color_mode)) {
         res.status(HTTP_STATUS.BAD_REQUEST).json({
@@ -209,10 +209,22 @@ export function createAuthRouter(): Router {
         return;
       }
 
+      // preferred_theme: non-empty string (max 50 chars) or null to reset
+      if (preferred_theme !== undefined && preferred_theme !== null) {
+        if (typeof preferred_theme !== 'string' || preferred_theme.length === 0 || preferred_theme.length > 50) {
+          res.status(HTTP_STATUS.BAD_REQUEST).json({
+            error: 'preferred_theme must be a non-empty string (max 50 chars) or null',
+            code: 'INVALID_REQUEST', status: HTTP_STATUS.BAD_REQUEST,
+          });
+          return;
+        }
+      }
+
       const prefs: Record<string, unknown> = {};
       if (theme_override !== undefined) prefs.theme_override = theme_override;
       if (color_mode !== undefined) prefs.color_mode = color_mode;
       if (language !== undefined) prefs.language = language;
+      if (preferred_theme !== undefined) prefs.preferred_theme = preferred_theme;
 
       const preferences = await updatePreferences(req.auth!.sub, prefs);
       res.json({ success: true, preferences });

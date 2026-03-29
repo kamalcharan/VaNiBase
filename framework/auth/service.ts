@@ -448,7 +448,7 @@ export async function me(userId: string, tenantId: string): Promise<Record<strin
 
   const { rows } = await pool.query(
     `SELECT
-       u.id, u.tenant_id, u.email, u.name, u.avatar_url, u.preferences,
+       u.id, u.tenant_id, u.email, u.name, u.avatar_url, u.preferences, u.preferred_theme,
        t.slug as tenant_slug, t.status as tenant_status,
        tp.name as tenant_name, tp.display_name as tenant_display_name,
        tp.theme_id as tenant_theme_id, tp.logo_url as tenant_logo_url,
@@ -479,6 +479,7 @@ export async function me(userId: string, tenantId: string): Promise<Record<strin
       avatar_url: row.avatar_url,
       roles,
       preferences: row.preferences || {},
+      preferred_theme: row.preferred_theme || null,
     },
     tenant: {
       id: row.tenant_id,
@@ -560,16 +561,25 @@ export async function revokeSessions(
  */
 export async function updatePreferences(
   userId: string,
-  preferences: { theme_override?: string; color_mode?: string; language?: string },
+  preferences: { theme_override?: string; color_mode?: string; language?: string; preferred_theme?: string },
 ): Promise<Record<string, unknown>> {
   const pool = getPool();
+
+  // If preferred_theme is provided, persist it to the dedicated column as well
+  const { preferred_theme, ...jsonbPrefs } = preferences;
+  if (preferred_theme !== undefined) {
+    await pool.query(
+      `UPDATE VN_users SET preferred_theme = $1, updated_at = now() WHERE id = $2`,
+      [preferred_theme || null, userId],
+    );
+  }
 
   const result = await pool.query(
     `UPDATE VN_users
      SET preferences = preferences || $1::jsonb, updated_at = now()
      WHERE id = $2
-     RETURNING preferences`,
-    [JSON.stringify(preferences), userId],
+     RETURNING preferences, preferred_theme`,
+    [JSON.stringify(jsonbPrefs), userId],
   );
 
   if (result.rows.length === 0) {
@@ -581,5 +591,6 @@ export async function updatePreferences(
     metadata: preferences,
   });
 
-  return (result.rows[0] as { preferences: Record<string, unknown> }).preferences;
+  const row = result.rows[0] as { preferences: Record<string, unknown>; preferred_theme: string | null };
+  return { ...row.preferences, preferred_theme: row.preferred_theme };
 }

@@ -109,8 +109,16 @@ export function ThemeProvider({
     }
   }, [themeId, colorMode]);
 
-  // Set theme from tenant on login (if no user preference in localStorage)
+  // Priority: user.preferred_theme > tenant.theme_id > product default
+  // Apply on login or when user/tenant data changes
+  const { user } = useAuth();
   useEffect(() => {
+    // User-level preference takes highest priority
+    if (user?.preferred_theme && isValidTheme(user.preferred_theme)) {
+      setThemeIdState(user.preferred_theme);
+      return;
+    }
+    // Then tenant default
     if (tenant?.theme_id && isValidTheme(tenant.theme_id)) {
       try {
         const savedTheme = localStorage.getItem(STORAGE_KEY_THEME);
@@ -121,7 +129,7 @@ export function ThemeProvider({
         setThemeIdState(tenant.theme_id);
       }
     }
-  }, [tenant?.theme_id]);
+  }, [user?.preferred_theme, tenant?.theme_id]);
 
   const setTheme = useCallback((id: string) => {
     if (isValidTheme(id)) {

@@ -13,7 +13,7 @@ export function resolvePath(data: Record<string, unknown>, path: string): unknow
   if (!cleaned) return data;
 
   // Split on dots AND brackets: "goals[0].name" → ["goals", "0", "name"]
-  const parts = cleaned.split(/[\.\[\]]/).filter(Boolean);
+  const parts = cleaned.split(/[.[\]]/).filter(Boolean);
 
   let current: unknown = data;
   for (const part of parts) {
