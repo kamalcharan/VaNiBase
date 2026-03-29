@@ -14,6 +14,7 @@ export default function LoginPage() {
   const { product, pages } = useShellConfig();
   console.log('[LOGIN] product:', product.name, '| pages:', pages);
   const router = useRouter();
+  console.log('[LOGIN] product:', product.name, '| pages:', pages);
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');

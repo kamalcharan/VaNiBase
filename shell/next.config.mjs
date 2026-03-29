@@ -7,11 +7,14 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const productConfigPath = resolve(__dirname, '../../shell.config.ts');
 const defaultConfigPath = resolve(__dirname, 'src/lib/default-product-config.ts');
 
+console.log('[NEXT CONFIG] Product config path:', productConfigPath);
+console.log('[NEXT CONFIG] Exists:', existsSync(productConfigPath));
+
 const nextConfig = {
   webpack: (config) => {
-    config.resolve.alias['@product-config'] = existsSync(productConfigPath)
-      ? productConfigPath
-      : defaultConfigPath;
+    const resolvedPath = existsSync(productConfigPath) ? productConfigPath : defaultConfigPath;
+    console.log('[WEBPACK ALIAS] @product-config →', resolvedPath);
+    config.resolve.alias['@product-config'] = resolvedPath;
     return config;
   },
 };
