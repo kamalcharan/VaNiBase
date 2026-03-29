@@ -88,7 +88,16 @@ export interface ShellConfig {
   /** Custom page overrides — products can replace default pages with their own */
   pages?: {
     login?: ComponentType;
+    register?: ComponentType;
+    forgotPassword?: ComponentType;
+    resetPassword?: ComponentType;
+    inviteAccept?: ComponentType;
+    settings?: ComponentType;
+    landing?: ComponentType;
   };
+  /** Map of onboarding step component names to React components.
+   *  Products register their step form components here. Key = step.component string. */
+  onboardingRegistry?: Record<string, ComponentType<{ onComplete: () => void; onSkip?: () => void }>>;
   /** Product-level context providers to wrap around the app.
    *  First provider in array = outermost wrapper. */
   providers?: ComponentType<{ children: ReactNode }>[];
