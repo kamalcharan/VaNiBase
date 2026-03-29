@@ -120,15 +120,21 @@ export async function seedOnboardingSteps(
 
 /**
  * Check if onboarding is complete for a tenant.
- * Returns true if no pending mandatory steps (or no rows at all).
+ * Returns false if no rows exist (onboarding was never seeded).
+ * Returns true only if all seeded steps have status = 'completed'.
  */
 export async function isOnboardingComplete(tenantId: string): Promise<boolean> {
   const pool = getPool();
   const { rows } = await pool.query(
-    `SELECT count(*) AS pending FROM VN_tenant_onboarding
-     WHERE tenant_id = $1 AND status != 'completed'`,
+    `SELECT
+       count(*) AS total,
+       count(*) FILTER (WHERE status != 'completed') AS pending
+     FROM VN_tenant_onboarding
+     WHERE tenant_id = $1`,
     [tenantId],
   );
+  const total = parseInt((rows[0] as { total: string }).total, 10);
   const pending = parseInt((rows[0] as { pending: string }).pending, 10);
+  if (total === 0) return false;
   return pending === 0;
 }

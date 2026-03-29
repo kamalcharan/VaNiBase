@@ -259,9 +259,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     storageSet(STORAGE_REFRESH, loginData.tokens.refresh_token);
     storageSet(STORAGE_EXPIRES, String(Date.now() + loginData.tokens.expires_in * 1000));
 
+    // Fetch /auth/me to get full tenant data including onboarding_complete
+    let finalUser = loginData.user;
+    let finalTenant = loginData.tenant;
+    try {
+      const meRes = await fetch(`${apiUrl}/api/v1/auth/me`, {
+        headers: { Authorization: `Bearer ${loginData.tokens.access_token}` },
+      });
+      if (meRes.ok) {
+        const meData: MeResponse = await meRes.json();
+        finalUser = meData.user;
+        finalTenant = meData.tenant;
+      }
+    } catch {
+      // Fall back to login response data if /me fails
+    }
+
     setState({
-      user: loginData.user,
-      tenant: loginData.tenant,
+      user: finalUser,
+      tenant: finalTenant,
       tokens: loginData.tokens,
       isAuthenticated: true,
       isLoading: false,

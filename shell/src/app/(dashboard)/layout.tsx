@@ -10,7 +10,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const { isAuthenticated, isLoading, tenant, user } = useAuth();
   const router = useRouter();
 
-  const onboardingComplete = tenant?.onboarding_complete !== false;
+  const onboardingComplete = tenant?.onboarding_complete === true;
   const isOwner = user?.roles?.includes('owner') ?? false;
 
   useEffect(() => {
