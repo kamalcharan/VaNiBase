@@ -1,5 +1,5 @@
 import type { ComponentType, ReactNode } from 'react';
-import type { OnboardingStepDef } from '../../../shared/onboarding-steps.js';
+import type { OnboardingStepDef } from './onboarding-steps.js';
 
 // Re-export for convenience
 export type { OnboardingStepDef };
@@ -105,7 +105,7 @@ export interface ShellConfig {
 
 // ── Default config (framework demo) ──
 
-import { DEFAULT_ONBOARDING_STEPS } from '../../../shared/onboarding-steps.js';
+import { DEFAULT_ONBOARDING_STEPS } from './onboarding-steps.js';
 
 export const DEFAULT_SHELL_CONFIG: ShellConfig = {
   product: {

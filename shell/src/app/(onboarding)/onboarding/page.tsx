@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '../../../context/auth-provider';
 import { useShellConfig } from '../../../lib/shell-config';
-import type { OnboardingStepDef } from '../../../../shared/onboarding-steps';
+import type { OnboardingStepDef } from '../../../lib/onboarding-steps';
 
 interface OnboardingStatusResponse {
   complete: boolean;
