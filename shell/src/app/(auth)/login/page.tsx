@@ -1,18 +1,17 @@
 'use client';
 
-import { useState, type FormEvent } from 'react';
+import { useState, useRef, type FormEvent } from 'react';
 import { useRouter } from 'next/navigation';
-import { useAuth, type SessionLimitResponse, type ActiveSession } from '../../../context/auth-provider';
+import { useAuth, type SessionLimitResponse } from '../../../context/auth-provider';
 import { useShellConfig } from '../../../lib/shell-config';
 import FormInput from '../../../components/vdf/form-input';
 import Button from '../../../components/vdf/button';
 import Alert from '../../../components/vdf/alert';
-import Modal from '../../../components/vdf/modal';
+import SessionLimitDialog from '../../../components/session-limit-dialog';
 
 export default function LoginPage() {
   const { login, revokeSessions, isAuthenticated } = useAuth();
   const { product, pages } = useShellConfig();
-  console.log('[LOGIN] product:', product.name, '| pages:', pages);
   const router = useRouter();
 
   const [email, setEmail] = useState('');
@@ -22,8 +21,11 @@ export default function LoginPage() {
 
   // Session limit state
   const [sessionLimit, setSessionLimit] = useState<SessionLimitResponse | null>(null);
-  const [selectedSessions, setSelectedSessions] = useState<Set<string>>(new Set());
   const [revokingLoading, setRevokingLoading] = useState(false);
+  const [revokeError, setRevokeError] = useState('');
+
+  // Keep password in ref for revoke call (doesn't trigger re-renders)
+  const passwordRef = useRef<string>('');
 
   // Product can override the entire login page
   if (pages?.login) {
@@ -41,6 +43,7 @@ export default function LoginPage() {
     e.preventDefault();
     setError('');
     setLoading(true);
+    passwordRef.current = password;
 
     try {
       const result = await login(email, password);
@@ -59,44 +62,43 @@ export default function LoginPage() {
     }
   }
 
-  function toggleSession(sessionId: string) {
-    setSelectedSessions((prev) => {
-      const next = new Set(prev);
-      if (next.has(sessionId)) {
-        next.delete(sessionId);
-      } else {
-        next.add(sessionId);
-      }
-      return next;
-    });
-  }
-
-  async function handleRevokeSessions() {
-    if (selectedSessions.size === 0) return;
+  async function handleRevoke(sessionIds: string[]) {
     setRevokingLoading(true);
-    setError('');
+    setRevokeError('');
 
     try {
       const result = await revokeSessions(
-        Array.from(selectedSessions),
+        sessionIds,
         email,
-        password,
+        passwordRef.current,
       );
 
+      // Check if STILL hitting session limit after revoke
       if ('code' in result && result.code === 'SESSION_LIMIT') {
-        setSessionLimit(result);
-        setSelectedSessions(new Set());
+        // Edge case: revoked sessions but still at limit
+        if (result.active_sessions.length === 0) {
+          setRevokeError('Unable to create session. Contact support.');
+        } else {
+          setSessionLimit(result);
+        }
         setRevokingLoading(false);
         return;
       }
 
-      // Success
+      // Success — clear dialog and redirect
       setSessionLimit(null);
+      setRevokingLoading(false);
       router.replace('/');
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to revoke sessions');
+      setRevokeError(err instanceof Error ? err.message : 'Failed to revoke sessions');
       setRevokingLoading(false);
     }
+  }
+
+  function handleCancel() {
+    setSessionLimit(null);
+    setRevokeError('');
+    // Don't clear form — user might want to retry
   }
 
   return (
@@ -136,7 +138,10 @@ export default function LoginPage() {
               label="Password"
               type="password"
               value={password}
-              onChange={(e) => setPassword(e.target.value)}
+              onChange={(e) => {
+                setPassword(e.target.value);
+                passwordRef.current = e.target.value;
+              }}
               placeholder="Enter your password"
               required
               disabled={loading}
@@ -155,72 +160,16 @@ export default function LoginPage() {
         </div>
       </div>
 
-      {/* Session Limit Modal */}
-      <Modal
-        isOpen={!!sessionLimit}
-        onClose={() => setSessionLimit(null)}
-        title="Session Limit Reached"
-        size="lg"
-      >
-        <div className="space-y-4">
-          <p className="text-sm text-muted">
-            You have reached the maximum of {sessionLimit?.max_sessions} active sessions.
-            Select sessions to end, then try again.
-          </p>
-
-          <div className="space-y-2">
-            {sessionLimit?.active_sessions.map((session: ActiveSession) => (
-              <label
-                key={session.session_id}
-                className={`flex items-start gap-3 p-3 rounded-md border cursor-pointer transition-colors ${
-                  selectedSessions.has(session.session_id)
-                    ? 'border-primary bg-primary/5'
-                    : 'border-border hover:bg-surface-hover'
-                }`}
-              >
-                <input
-                  type="checkbox"
-                  checked={selectedSessions.has(session.session_id)}
-                  onChange={() => toggleSession(session.session_id)}
-                  className="mt-0.5"
-                />
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-foreground">
-                    {session.browser || 'Unknown'} on {session.os || 'Unknown'}
-                  </p>
-                  <p className="text-xs text-muted">
-                    {session.device_type || 'unknown'} &middot; {session.ip_address || 'unknown IP'}
-                  </p>
-                  <p className="text-xs text-muted">
-                    Last active: {new Date(session.last_activity_at).toLocaleString()}
-                  </p>
-                </div>
-              </label>
-            ))}
-          </div>
-
-          {error && (
-            <Alert variant="error" message={error} />
-          )}
-
-          <div className="flex gap-3 justify-end">
-            <Button
-              variant="secondary"
-              onClick={() => setSessionLimit(null)}
-            >
-              Cancel
-            </Button>
-            <Button
-              variant="danger"
-              loading={revokingLoading}
-              disabled={selectedSessions.size === 0}
-              onClick={handleRevokeSessions}
-            >
-              End {selectedSessions.size} session{selectedSessions.size !== 1 ? 's' : ''} &amp; Sign in
-            </Button>
-          </div>
-        </div>
-      </Modal>
+      {/* Session Limit Dialog */}
+      <SessionLimitDialog
+        isOpen={sessionLimit !== null}
+        maxSessions={sessionLimit?.max_sessions ?? 0}
+        activeSessions={sessionLimit?.active_sessions ?? []}
+        onRevoke={handleRevoke}
+        onCancel={handleCancel}
+        isRevoking={revokingLoading}
+        error={revokeError}
+      />
     </>
   );
 }
