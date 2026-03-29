@@ -18,7 +18,7 @@ function getApiUrl(): string {
 
 export default function OnboardingPage() {
   const { getAuthHeaders, tenant } = useAuth();
-  const { onboarding, onboardingRegistry } = useShellConfig();
+  const { onboarding, onboardingRegistry, product } = useShellConfig();
   const router = useRouter();
   const apiUrl = getApiUrl();
 
@@ -41,7 +41,7 @@ export default function OnboardingPage() {
       const data: OnboardingStatusResponse = await res.json();
 
       if (data.complete) {
-        router.replace('/');
+        window.location.href = '/';
         return;
       }
 
@@ -64,7 +64,7 @@ export default function OnboardingPage() {
     } finally {
       setIsLoadingStatus(false);
     }
-  }, [apiUrl, getAuthHeaders, allSteps, router]);
+  }, [apiUrl, getAuthHeaders, allSteps]);
 
   useEffect(() => {
     fetchStatus();
@@ -73,13 +73,22 @@ export default function OnboardingPage() {
   const currentStep = allSteps[currentIndex];
   const isLastStep = currentIndex === allSteps.length - 1;
 
-  const advanceOrFinish = useCallback(() => {
+  const advanceOrFinish = useCallback(async () => {
     if (isLastStep) {
-      router.replace('/');
+      // Refresh auth state so onboarding_complete is updated
+      try {
+        await fetch(`${apiUrl}/api/v1/auth/me`, {
+          headers: { ...getAuthHeaders() },
+        });
+      } catch {
+        // Continue to redirect even if /me fails
+      }
+      // Full page navigation to reset all state
+      window.location.href = '/';
     } else {
       setCurrentIndex((i) => i + 1);
     }
-  }, [isLastStep, router]);
+  }, [isLastStep, apiUrl, getAuthHeaders]);
 
   // Called by product step components or the default Continue button
   const handleComplete = useCallback(async () => {
@@ -94,16 +103,16 @@ export default function OnboardingPage() {
         });
         setCompletedSteps((prev) => new Set(prev).add(currentStep.id));
       }
-      advanceOrFinish();
+      await advanceOrFinish();
     } catch {
-      advanceOrFinish();
+      await advanceOrFinish();
     } finally {
       setIsSubmitting(false);
     }
   }, [currentStep, apiUrl, getAuthHeaders, advanceOrFinish]);
 
-  const handleSkip = useCallback(() => {
-    advanceOrFinish();
+  const handleSkip = useCallback(async () => {
+    await advanceOrFinish();
   }, [advanceOrFinish]);
 
   if (isLoadingStatus || allSteps.length === 0) {
@@ -115,10 +124,71 @@ export default function OnboardingPage() {
   }
 
   // Resolve the step component from onboardingRegistry
-  const StepComponent = currentStep.component && onboardingRegistry
+  const StepComponent = currentStep?.component && onboardingRegistry
     ? onboardingRegistry[currentStep.component]
-    : undefined;
+    : null;
 
+  // Step indicator dots (shared between both layouts)
+  const stepDots = (
+    <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+      {allSteps.map((step, idx) => {
+        const isDone = completedSteps.has(step.id) || idx < currentIndex;
+        const isCurrent = idx === currentIndex;
+        return (
+          <div
+            key={step.id}
+            style={{
+              width: 8,
+              height: 8,
+              borderRadius: '50%',
+              backgroundColor: isDone
+                ? 'var(--color-success)'
+                : isCurrent
+                  ? 'var(--color-primary)'
+                  : 'var(--color-border)',
+              transition: 'background-color 0.2s',
+            }}
+            title={step.label}
+          />
+        );
+      })}
+    </div>
+  );
+
+  // Product component registered — render full-width with minimal top bar
+  if (StepComponent) {
+    return (
+      <div style={{ minHeight: '100vh', color: 'var(--color-fg)' }}>
+        {/* Minimal top bar */}
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            padding: '0.75rem 1.5rem',
+            borderBottom: '1px solid var(--color-border)',
+            backgroundColor: 'var(--color-surface)',
+          }}
+        >
+          <span style={{ fontWeight: 600, fontSize: '0.875rem' }}>
+            {product.name}
+          </span>
+          {stepDots}
+          <span style={{ fontSize: '0.75rem', color: 'var(--color-muted)' }}>
+            {currentIndex + 1} / {allSteps.length}
+          </span>
+        </div>
+
+        {/* Full-width step component */}
+        <StepComponent
+          onComplete={handleComplete}
+          onSkip={currentStep.mandatory ? undefined : handleSkip}
+        />
+      </div>
+    );
+  }
+
+  // Fallback placeholder UI
   return (
     <div
       style={{
@@ -139,14 +209,7 @@ export default function OnboardingPage() {
       </div>
 
       {/* Step indicator */}
-      <div
-        style={{
-          display: 'flex',
-          gap: 6,
-          justifyContent: 'center',
-          marginBottom: '2.5rem',
-        }}
-      >
+      <div style={{ display: 'flex', gap: 6, justifyContent: 'center', marginBottom: '2.5rem' }}>
         {allSteps.map((step, idx) => {
           const isDone = completedSteps.has(step.id) || idx < currentIndex;
           const isCurrent = idx === currentIndex;
@@ -170,83 +233,74 @@ export default function OnboardingPage() {
         })}
       </div>
 
-      {/* Step content */}
-      {StepComponent ? (
-        <StepComponent
-          onComplete={handleComplete}
-          onSkip={currentStep.mandatory ? undefined : handleSkip}
-        />
-      ) : (
-        <>
-          <div
+      {/* Placeholder step content */}
+      <div
+        style={{
+          backgroundColor: 'var(--color-surface)',
+          border: '1px solid var(--color-border)',
+          borderRadius: '0.5rem',
+          padding: '2rem',
+          marginBottom: '1.5rem',
+          minHeight: 200,
+        }}
+      >
+        <h2 style={{ fontSize: '1.125rem', fontWeight: 600, marginBottom: '0.5rem' }}>
+          {currentStep.label}
+        </h2>
+        <p style={{ color: 'var(--color-muted)', fontSize: '0.8125rem', marginBottom: '1rem' }}>
+          {currentStep.mandatory ? 'Required' : 'Optional'}
+        </p>
+        <div
+          style={{
+            padding: '1.5rem',
+            border: '1px dashed var(--color-border)',
+            borderRadius: '0.375rem',
+            textAlign: 'center',
+            color: 'var(--color-muted)',
+            fontSize: '0.875rem',
+          }}
+        >
+          Step placeholder: {currentStep.component || currentStep.id} ({currentStep.id})
+        </div>
+      </div>
+
+      {/* Navigation buttons */}
+      <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem' }}>
+        {!currentStep.mandatory && !isLastStep && (
+          <button
+            onClick={handleSkip}
+            disabled={isSubmitting}
             style={{
-              backgroundColor: 'var(--color-surface)',
+              padding: '0.5rem 1.25rem',
+              backgroundColor: 'transparent',
+              color: 'var(--color-muted)',
               border: '1px solid var(--color-border)',
-              borderRadius: '0.5rem',
-              padding: '2rem',
-              marginBottom: '1.5rem',
-              minHeight: 200,
+              borderRadius: '0.375rem',
+              cursor: 'pointer',
+              fontSize: '0.875rem',
             }}
           >
-            <h2 style={{ fontSize: '1.125rem', fontWeight: 600, marginBottom: '0.5rem' }}>
-              {currentStep.label}
-            </h2>
-            <p style={{ color: 'var(--color-muted)', fontSize: '0.8125rem', marginBottom: '1rem' }}>
-              {currentStep.mandatory ? 'Required' : 'Optional'}
-            </p>
-            <div
-              style={{
-                padding: '1.5rem',
-                border: '1px dashed var(--color-border)',
-                borderRadius: '0.375rem',
-                textAlign: 'center',
-                color: 'var(--color-muted)',
-                fontSize: '0.875rem',
-              }}
-            >
-              Step placeholder: {currentStep.component || currentStep.id} ({currentStep.id})
-            </div>
-          </div>
-
-          {/* Navigation buttons (only shown for placeholder steps) */}
-          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem' }}>
-            {!currentStep.mandatory && !isLastStep && (
-              <button
-                onClick={handleSkip}
-                disabled={isSubmitting}
-                style={{
-                  padding: '0.5rem 1.25rem',
-                  backgroundColor: 'transparent',
-                  color: 'var(--color-muted)',
-                  border: '1px solid var(--color-border)',
-                  borderRadius: '0.375rem',
-                  cursor: 'pointer',
-                  fontSize: '0.875rem',
-                }}
-              >
-                Skip
-              </button>
-            )}
-            <button
-              onClick={handleComplete}
-              disabled={isSubmitting}
-              style={{
-                padding: '0.5rem 1.5rem',
-                backgroundColor: 'var(--color-primary)',
-                color: 'var(--color-primary-fg)',
-                border: 'none',
-                borderRadius: '0.375rem',
-                cursor: isSubmitting ? 'wait' : 'pointer',
-                fontSize: '0.875rem',
-                fontWeight: 500,
-                opacity: isSubmitting ? 0.7 : 1,
-              }}
-            >
-              {isSubmitting ? 'Saving...' : isLastStep ? 'Finish' : 'Continue'}
-            </button>
-          </div>
-        </>
-      )}
+            Skip
+          </button>
+        )}
+        <button
+          onClick={handleComplete}
+          disabled={isSubmitting}
+          style={{
+            padding: '0.5rem 1.5rem',
+            backgroundColor: 'var(--color-primary)',
+            color: 'var(--color-primary-fg)',
+            border: 'none',
+            borderRadius: '0.375rem',
+            cursor: isSubmitting ? 'wait' : 'pointer',
+            fontSize: '0.875rem',
+            fontWeight: 500,
+            opacity: isSubmitting ? 0.7 : 1,
+          }}
+        >
+          {isSubmitting ? 'Saving...' : isLastStep ? 'Finish' : 'Continue'}
+        </button>
+      </div>
     </div>
   );
 }
