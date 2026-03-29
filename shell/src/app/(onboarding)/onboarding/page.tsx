@@ -17,9 +17,9 @@ function getApiUrl(): string {
 }
 
 export default function OnboardingPage() {
-  const { getAuthHeaders, tenant } = useAuth();
+  const { getAuthHeaders } = useAuth();
   const { onboarding, onboardingRegistry, product } = useShellConfig();
-  const router = useRouter();
+  useRouter();
   const apiUrl = getApiUrl();
 
   const allSteps: OnboardingStepDef[] = onboarding?.steps ?? [];

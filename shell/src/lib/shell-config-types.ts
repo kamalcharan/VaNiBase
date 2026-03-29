@@ -4,6 +4,42 @@ import type { OnboardingStepDef } from './onboarding-steps';
 // Re-export for convenience
 export type { OnboardingStepDef };
 
+// ── Sidebar & Navbar config interfaces ──
+
+export interface SidebarNavItem {
+  /** Unique identifier */
+  id: string;
+  /** Display label */
+  label: string;
+  /** Route path, e.g. "/clients" */
+  route: string;
+  /** Lucide icon name as string, e.g. "Users", "BarChart3" */
+  icon: string;
+  /** Badge count (optional) */
+  badge?: number;
+}
+
+export interface SidebarGroup {
+  /** Group label displayed above items */
+  label: string;
+  /** Navigation items in this group */
+  items: SidebarNavItem[];
+}
+
+export interface SidebarConfig {
+  /** Navigation item groups */
+  groups: SidebarGroup[];
+  /** Whether sidebar starts collapsed. Default: false */
+  defaultCollapsed?: boolean;
+}
+
+export interface NavbarConfig {
+  /** Show live/test environment toggle. Default: false */
+  showEnvironmentToggle?: boolean;
+  /** Show notification bell. Default: false */
+  showNotifications?: boolean;
+}
+
 // ── Config interfaces (shared between server and client) ──
 
 export interface SkillEndpoint {
@@ -101,6 +137,10 @@ export interface ShellConfig {
   /** Product-level context providers to wrap around the app.
    *  First provider in array = outermost wrapper. */
   providers?: ComponentType<{ children: ReactNode }>[];
+  /** Sidebar navigation configuration */
+  sidebar?: SidebarConfig;
+  /** Navbar configuration */
+  navbar?: NavbarConfig;
 }
 
 // ── Default config (framework demo) ──

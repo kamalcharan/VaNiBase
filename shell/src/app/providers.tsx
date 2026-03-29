@@ -13,7 +13,7 @@ import { ThemeProvider } from '../components/theme-provider';
  * values (e.g., pages.login component references, provider components) that
  * would be stripped at the Server Component → Client Component serialization boundary.
  */
-let productConfig;
+let productConfig: import('../lib/shell-config').ShellConfig;
 try {
   // eslint-disable-next-line @typescript-eslint/no-require-imports
   productConfig = require('@product-config').default;

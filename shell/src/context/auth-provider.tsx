@@ -16,6 +16,7 @@ import type {
   SessionLimitResponse,
   RefreshResponse,
   MeResponse,
+  Environment,
 } from './auth-types';
 
 export type {
@@ -24,12 +25,14 @@ export type {
   LoginResponse,
   SessionLimitResponse,
   ActiveSession,
+  Environment,
 } from './auth-types';
 
 // --- Storage keys (sessionStorage — per-tab, cleared on close) ---
 const STORAGE_ACCESS = 'vani-access-token';
 const STORAGE_REFRESH = 'vani-refresh-token';
 const STORAGE_EXPIRES = 'vani-token-expires-at';
+const STORAGE_ENVIRONMENT = 'vani-environment';
 
 // --- Context interface ---
 
@@ -38,6 +41,7 @@ interface AuthContextValue extends AuthState {
   logout: () => Promise<void>;
   getAuthHeaders: () => Record<string, string>;
   revokeSessions: (sessionIds: string[], email: string, password: string) => Promise<LoginResponse | SessionLimitResponse>;
+  setEnvironment: (env: Environment) => void;
 }
 
 const AuthContext = createContext<AuthContextValue>({
@@ -46,10 +50,12 @@ const AuthContext = createContext<AuthContextValue>({
   tokens: null,
   isAuthenticated: false,
   isLoading: true,
+  environment: 'live',
   login: async () => { throw new Error('AuthProvider not mounted'); },
   logout: async () => {},
   getAuthHeaders: () => ({}),
   revokeSessions: async () => { throw new Error('AuthProvider not mounted'); },
+  setEnvironment: () => {},
 });
 
 export const useAuth = () => useContext(AuthContext);
@@ -79,12 +85,20 @@ function storageClear(): void {
 // --- Provider ---
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [state, setState] = useState<AuthState>({
-    user: null,
-    tenant: null,
-    tokens: null,
-    isAuthenticated: false,
-    isLoading: true,
+  const [state, setState] = useState<AuthState>(() => {
+    let env: Environment = 'live';
+    try {
+      const saved = sessionStorage.getItem(STORAGE_ENVIRONMENT);
+      if (saved === 'live' || saved === 'test') env = saved;
+    } catch { /* SSR */ }
+    return {
+      user: null,
+      tenant: null,
+      tokens: null,
+      isAuthenticated: false,
+      isLoading: true,
+      environment: env,
+    };
   });
 
   const refreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -109,10 +123,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
         if (!res.ok) {
           storageClear();
-          setState({
-            user: null, tenant: null, tokens: null,
+          setState((prev) => ({
+            ...prev, user: null, tenant: null, tokens: null,
             isAuthenticated: false, isLoading: false,
-          });
+          }));
           return;
         }
 
@@ -164,13 +178,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             refresh_token: refreshToken,
             expires_in: Math.floor((expiry - now) / 1000),
           };
-          setState({
+          setState((prev) => ({
+            ...prev,
             user: data.user,
             tenant: data.tenant,
             tokens,
             isAuthenticated: true,
             isLoading: false,
-          });
+          }));
           scheduleRefresh(tokens.expires_in, refreshToken);
         })
         .catch(() => {
@@ -216,13 +231,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }
 
         const meData: MeResponse = await meRes.json();
-        setState({
+        setState((prev) => ({
+          ...prev,
           user: meData.user,
           tenant: meData.tenant,
           tokens: newTokens,
           isAuthenticated: true,
           isLoading: false,
-        });
+        }));
         scheduleRefresh(newTokens.expires_in, newTokens.refresh_token);
       } catch {
         storageClear();
@@ -275,13 +291,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // Fall back to login response data if /me fails
     }
 
-    setState({
+    setState((prev) => ({
+      ...prev,
       user: finalUser,
       tenant: finalTenant,
       tokens: loginData.tokens,
       isAuthenticated: true,
       isLoading: false,
-    });
+    }));
 
     scheduleRefresh(loginData.tokens.expires_in, loginData.tokens.refresh_token);
 
@@ -307,10 +324,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current);
     storageClear();
 
-    setState({
-      user: null, tenant: null, tokens: null,
+    setState((prev) => ({
+      ...prev, user: null, tenant: null, tokens: null,
       isAuthenticated: false, isLoading: false,
-    });
+    }));
   }, [apiUrl, state.tokens]);
 
   // --- Revoke sessions then retry login ---
@@ -328,12 +345,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return login(email, password);
   }, [apiUrl, login]);
 
+  // --- Set environment ---
+  const setEnvironment = useCallback((env: Environment) => {
+    setState((prev) => ({ ...prev, environment: env }));
+    try { sessionStorage.setItem(STORAGE_ENVIRONMENT, env); } catch { /* ignore */ }
+  }, []);
+
   // --- Get auth headers ---
   const getAuthHeaders = useCallback((): Record<string, string> => {
     const token = state.tokens?.access_token || storageGet(STORAGE_ACCESS);
-    if (!token) return {};
-    return { Authorization: `Bearer ${token}` };
-  }, [state.tokens]);
+    const headers: Record<string, string> = {};
+    if (token) headers.Authorization = `Bearer ${token}`;
+    headers['x-environment'] = state.environment;
+    return headers;
+  }, [state.tokens, state.environment]);
 
   return (
     <AuthContext.Provider
@@ -343,6 +368,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         logout,
         getAuthHeaders,
         revokeSessions,
+        setEnvironment,
       }}
     >
       {children}

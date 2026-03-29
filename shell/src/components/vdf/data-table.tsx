@@ -47,7 +47,7 @@ function autoLabel(key: string): string {
     .replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
-export default function DataTable({ data, variant, sortable, paginated, pageSize: propPageSize, onRowClick, entityType, entityIdField }: Props) {
+export default function DataTable({ data, variant: _variant, sortable, paginated, pageSize: propPageSize, onRowClick, entityType, entityIdField }: Props) {
   const [sortKey, setSortKey] = useState<string | null>(null);
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
   const [page, setPage] = useState(0);
@@ -109,7 +109,7 @@ export default function DataTable({ data, variant, sortable, paginated, pageSize
       sortable: sortable,
       paginated: paginated,
       pageSize: propPageSize,
-      onRowClick: onRowClick,
+      onRowClick: typeof onRowClick === 'string' ? onRowClick : undefined,
     };
   }, [data, sortable, paginated, propPageSize, onRowClick]);
 

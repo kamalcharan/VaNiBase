@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useShellConfig, type RecipeConfig } from '../lib/shell-config';
+import { useShellConfig } from '../lib/shell-config';
 import { fetchRecipeData, buildAuthHeaders } from '../lib/skill-fetcher';
 import { useAuth } from '../context/auth-provider';
 import RecipeRenderer from './recipe-renderer';

@@ -94,4 +94,5 @@ export interface UpdatePreferencesRequest {
   theme_override?: string;
   color_mode?: 'light' | 'dark' | 'system';
   language?: string;
+  preferred_theme?: string;
 }
