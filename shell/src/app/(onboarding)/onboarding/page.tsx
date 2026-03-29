@@ -188,118 +188,82 @@ export default function OnboardingPage() {
     );
   }
 
-  // Fallback placeholder UI
+  // Fallback when no product component registered
   return (
-    <div
-      style={{
-        maxWidth: 720,
-        margin: '0 auto',
-        padding: '3rem 1.5rem',
-        color: 'var(--color-fg)',
-      }}
-    >
-      {/* Header */}
-      <div style={{ marginBottom: '2rem', textAlign: 'center' }}>
-        <h1 style={{ fontSize: '1.5rem', fontWeight: 700, marginBottom: '0.25rem' }}>
-          Welcome to {tenant?.name || 'your workspace'}
-        </h1>
-        <p style={{ color: 'var(--color-muted)', fontSize: '0.875rem' }}>
-          Let&apos;s get you set up — step {currentIndex + 1} of {allSteps.length}
-        </p>
-      </div>
-
-      {/* Step indicator */}
-      <div style={{ display: 'flex', gap: 6, justifyContent: 'center', marginBottom: '2.5rem' }}>
-        {allSteps.map((step, idx) => {
-          const isDone = completedSteps.has(step.id) || idx < currentIndex;
-          const isCurrent = idx === currentIndex;
-          return (
-            <div
-              key={step.id}
-              style={{
-                width: 10,
-                height: 10,
-                borderRadius: '50%',
-                backgroundColor: isDone
-                  ? 'var(--color-success)'
-                  : isCurrent
-                    ? 'var(--color-primary)'
-                    : 'var(--color-border)',
-                transition: 'background-color 0.2s',
-              }}
-              title={step.label}
-            />
-          );
-        })}
-      </div>
-
-      {/* Placeholder step content */}
+    <div style={{ minHeight: '100vh', color: 'var(--color-fg)' }}>
+      {/* Minimal top bar */}
       <div
         style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          padding: '0.75rem 1.5rem',
+          borderBottom: '1px solid var(--color-border)',
           backgroundColor: 'var(--color-surface)',
-          border: '1px solid var(--color-border)',
-          borderRadius: '0.5rem',
-          padding: '2rem',
-          marginBottom: '1.5rem',
-          minHeight: 200,
         }}
       >
-        <h2 style={{ fontSize: '1.125rem', fontWeight: 600, marginBottom: '0.5rem' }}>
-          {currentStep.label}
-        </h2>
-        <p style={{ color: 'var(--color-muted)', fontSize: '0.8125rem', marginBottom: '1rem' }}>
-          {currentStep.mandatory ? 'Required' : 'Optional'}
-        </p>
-        <div
-          style={{
-            padding: '1.5rem',
-            border: '1px dashed var(--color-border)',
-            borderRadius: '0.375rem',
-            textAlign: 'center',
-            color: 'var(--color-muted)',
-            fontSize: '0.875rem',
-          }}
-        >
-          Step placeholder: {currentStep.component || currentStep.id} ({currentStep.id})
-        </div>
+        <span style={{ fontWeight: 600, fontSize: '0.875rem' }}>
+          {product.name}
+        </span>
+        {stepDots}
+        <span style={{ fontSize: '0.75rem', color: 'var(--color-muted)' }}>
+          {currentIndex + 1} / {allSteps.length}
+        </span>
       </div>
 
-      {/* Navigation buttons */}
-      <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem' }}>
-        {!currentStep.mandatory && !isLastStep && (
+      {/* Unknown step fallback */}
+      <div
+        style={{
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          justifyContent: 'center',
+          padding: '4rem 1.5rem',
+          color: 'var(--color-muted)',
+          textAlign: 'center',
+        }}
+      >
+        <div style={{ fontSize: '1rem', marginBottom: '1.5rem' }}>
+          Unknown step: {currentStep.component || currentStep.id}
+        </div>
+
+        {/* Navigation buttons */}
+        <div style={{ display: 'flex', gap: '0.75rem' }}>
+          {!currentStep.mandatory && !isLastStep && (
+            <button
+              onClick={handleSkip}
+              disabled={isSubmitting}
+              style={{
+                padding: '0.5rem 1.25rem',
+                backgroundColor: 'transparent',
+                color: 'var(--color-muted)',
+                border: '1px solid var(--color-border)',
+                borderRadius: '0.375rem',
+                cursor: 'pointer',
+                fontSize: '0.875rem',
+              }}
+            >
+              Skip
+            </button>
+          )}
           <button
-            onClick={handleSkip}
+            onClick={handleComplete}
             disabled={isSubmitting}
             style={{
-              padding: '0.5rem 1.25rem',
-              backgroundColor: 'transparent',
-              color: 'var(--color-muted)',
-              border: '1px solid var(--color-border)',
+              padding: '0.5rem 1.5rem',
+              backgroundColor: 'var(--color-primary)',
+              color: 'var(--color-primary-fg)',
+              border: 'none',
               borderRadius: '0.375rem',
-              cursor: 'pointer',
+              cursor: isSubmitting ? 'wait' : 'pointer',
               fontSize: '0.875rem',
+              fontWeight: 500,
+              opacity: isSubmitting ? 0.7 : 1,
             }}
           >
-            Skip
+            {isSubmitting ? 'Saving...' : isLastStep ? 'Finish' : 'Continue'}
           </button>
-        )}
-        <button
-          onClick={handleComplete}
-          disabled={isSubmitting}
-          style={{
-            padding: '0.5rem 1.5rem',
-            backgroundColor: 'var(--color-primary)',
-            color: 'var(--color-primary-fg)',
-            border: 'none',
-            borderRadius: '0.375rem',
-            cursor: isSubmitting ? 'wait' : 'pointer',
-            fontSize: '0.875rem',
-            fontWeight: 500,
-            opacity: isSubmitting ? 0.7 : 1,
-          }}
-        >
-          {isSubmitting ? 'Saving...' : isLastStep ? 'Finish' : 'Continue'}
-        </button>
+        </div>
       </div>
     </div>
   );
