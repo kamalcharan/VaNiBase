@@ -90,22 +90,39 @@ export default function OnboardingPage() {
     }
   }, [isLastStep, apiUrl, getAuthHeaders]);
 
-  // Called by product step components or the default Continue button
-  const handleComplete = useCallback(async () => {
+  // Called by product step components or the default Continue button.
+  // Step components can pass form data (e.g. { first_name, mobile, designation })
+  // which gets sent as metadata to the backend and persisted to VN_users.
+  const handleComplete = useCallback(async (data?: Record<string, unknown>) => {
     if (!currentStep) return;
     setIsSubmitting(true);
     try {
       if (currentStep.mandatory) {
-        await fetch(`${apiUrl}/api/v1/onboarding/step`, {
+        const body: Record<string, unknown> = {
+          step_id: currentStep.id,
+          status: 'completed',
+        };
+        if (data && Object.keys(data).length > 0) {
+          body.metadata = data;
+        }
+        const res = await fetch(`${apiUrl}/api/v1/onboarding/step`, {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
-          body: JSON.stringify({ step_id: currentStep.id, status: 'completed' }),
+          body: JSON.stringify(body),
         });
+        if (!res.ok) {
+          // If save fails, don't advance — let user retry
+          const err = await res.json().catch(() => ({}));
+          console.error('[ONBOARDING] Step save failed:', err);
+          setIsSubmitting(false);
+          return;
+        }
         setCompletedSteps((prev) => new Set(prev).add(currentStep.id));
       }
       await advanceOrFinish();
-    } catch {
-      await advanceOrFinish();
+    } catch (err) {
+      console.error('[ONBOARDING] Step save error:', err);
+      // Don't advance on error — step must succeed before moving on
     } finally {
       setIsSubmitting(false);
     }
@@ -247,7 +264,7 @@ export default function OnboardingPage() {
             </button>
           )}
           <button
-            onClick={handleComplete}
+            onClick={() => handleComplete()}
             disabled={isSubmitting}
             style={{
               padding: '0.5rem 1.5rem',

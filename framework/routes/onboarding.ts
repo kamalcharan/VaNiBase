@@ -39,6 +39,7 @@ export function createOnboardingRouter(): Router {
       }
 
       const { step_id, status, metadata } = req.body || {};
+      console.log('[ONBOARDING] Step save payload:', JSON.stringify({ step_id, status, metadata, user_id: auth.sub }));
 
       if (!step_id || typeof step_id !== 'string') {
         throw new ValidationError('step_id is required');
