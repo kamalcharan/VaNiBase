@@ -6,7 +6,10 @@
  * POST /api/v1/auth/refresh          — Rotate refresh token, return new pair
  * POST /api/v1/auth/logout           — Revoke refresh token
  * POST /api/v1/auth/sessions/revoke  — Revoke specific sessions (password-based or Bearer)
+ * GET   /api/v1/auth/sessions        — List active sessions (Bearer required)
+ * DELETE /api/v1/auth/sessions/:id   — Revoke a single session (Bearer required)
  * PATCH /api/v1/auth/preferences     — Update user preferences (Bearer required)
+ * PATCH /api/v1/auth/profile         — Update user profile fields (Bearer required)
  * GET   /api/v1/auth/me              — Return current user profile (Bearer required)
  * POST  /api/v1/auth/change-password  — Change password (Bearer required)
  * POST  /api/v1/auth/forgot-password  — Request password reset token (public)
@@ -22,6 +25,7 @@ import type { Request, Response, NextFunction } from 'express';
 import {
   register, login, refresh, logout, me,
   verifyCredentials, revokeSessions, updatePreferences,
+  updateProfile, listSessions, revokeSession,
   createInvitations, acceptInvitation, listInvitations, revokeInvitation,
   changePassword, forgotPassword, resetPassword,
 } from '../auth/index.js';
@@ -391,6 +395,62 @@ export function createAuthRouter(): Router {
 
       await revokeInvitation(req.params.id, auth.tenant_id);
       res.json({ revoked: true });
+    } catch (err) {
+      next(err);
+    }
+  });
+
+  // ── PATCH /profile (Protected — Bearer token required) ──
+  router.patch('/profile', authMiddleware, async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { first_name, last_name, designation, country_code, mobile } = req.body || {};
+
+      // Validate field lengths
+      if (first_name !== undefined && (typeof first_name !== 'string' || first_name.length > 100)) {
+        throw new ValidationError('first_name must be a string (max 100 chars)');
+      }
+      if (last_name !== undefined && (typeof last_name !== 'string' || last_name.length > 100)) {
+        throw new ValidationError('last_name must be a string (max 100 chars)');
+      }
+      if (designation !== undefined && (typeof designation !== 'string' || designation.length > 50)) {
+        throw new ValidationError('designation must be a string (max 50 chars)');
+      }
+      if (country_code !== undefined && (typeof country_code !== 'string' || country_code.length > 10)) {
+        throw new ValidationError('country_code must be a string (max 10 chars)');
+      }
+      if (mobile !== undefined && (typeof mobile !== 'string' || mobile.length > 20)) {
+        throw new ValidationError('mobile must be a string (max 20 chars)');
+      }
+
+      const fields: Record<string, unknown> = {};
+      if (first_name !== undefined) fields.first_name = first_name;
+      if (last_name !== undefined) fields.last_name = last_name;
+      if (designation !== undefined) fields.designation = designation;
+      if (country_code !== undefined) fields.country_code = country_code;
+      if (mobile !== undefined) fields.mobile = mobile;
+
+      const user = await updateProfile(req.auth!.sub, fields);
+      res.json({ success: true, user });
+    } catch (err) {
+      next(err);
+    }
+  });
+
+  // ── GET /sessions (Protected — Bearer token required) ──
+  router.get('/sessions', authMiddleware, async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const result = await listSessions(req.auth!.sub);
+      res.json(result);
+    } catch (err) {
+      next(err);
+    }
+  });
+
+  // ── DELETE /sessions/:id (Protected — Bearer token required) ──
+  router.delete('/sessions/:id', authMiddleware, async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      await revokeSession(req.auth!.sub, req.params.id);
+      res.json({ success: true });
     } catch (err) {
       next(err);
     }

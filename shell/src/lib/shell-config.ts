@@ -107,6 +107,10 @@ export interface ShellConfig {
     showEnvironmentToggle?: boolean;
     showNotifications?: boolean;
   };
+  /** Settings page tab configuration */
+  settings?: {
+    tabs: { id: string; label: string; icon: string; component: string }[];
+  };
 }
 
 // ── Default config (framework demo) ──

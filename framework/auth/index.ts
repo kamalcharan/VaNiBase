@@ -3,7 +3,7 @@
  */
 
 // Service (primary API)
-export { register, login, refresh, logout, me, verifyCredentials, revokeSessions, updatePreferences } from './service.js';
+export { register, login, refresh, logout, me, verifyCredentials, revokeSessions, updatePreferences, updateProfile, listSessions, revokeSession } from './service.js';
 
 // Passwords
 export { hashPassword, verifyPassword } from './passwords.js';
