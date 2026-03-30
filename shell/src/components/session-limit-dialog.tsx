@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback, useMemo } from 'react';
 import type { ActiveSession } from '../context/auth-types';
 import {
   Monitor, Smartphone, Tablet,
-  Globe, X, CheckSquare, Square, Loader2,
+  Globe, X, Loader2,
 } from 'lucide-react';
 
 // ── Props ──
@@ -30,26 +30,36 @@ function timeAgo(dateString: string): string {
   return `${Math.floor(seconds / 86400)}d ago`;
 }
 
-function parseDevice(ua: string | null): { browser: string; device: 'desktop' | 'mobile' | 'tablet' } {
-  if (!ua) return { browser: 'Unknown', device: 'desktop' };
+function parseDeviceFromUA(ua: string | null): { browser: string; os: string; device: 'desktop' | 'mobile' | 'tablet' } {
+  if (!ua) return { browser: 'Unknown', os: 'Unknown', device: 'desktop' };
+
   const browser = ua.includes('Edg') ? 'Edge' :
     ua.includes('Chrome') ? 'Chrome' :
     ua.includes('Firefox') ? 'Firefox' :
     ua.includes('Safari') ? 'Safari' : 'Unknown';
-  const device: 'desktop' | 'mobile' | 'tablet' = /Mobile|Android/i.test(ua) ? 'mobile' :
+
+  const os = ua.includes('Windows') ? 'Windows' :
+    ua.includes('Mac OS') ? 'macOS' :
+    ua.includes('iPhone') || ua.includes('iPad') ? 'iOS' :
+    ua.includes('Android') ? 'Android' :
+    ua.includes('Linux') ? 'Linux' : 'Unknown';
+
+  const device: 'desktop' | 'mobile' | 'tablet' = /Mobile|Android(?!.*Tablet)/i.test(ua) ? 'mobile' :
     /Tablet|iPad/i.test(ua) ? 'tablet' : 'desktop';
-  return { browser, device };
+
+  return { browser, os, device };
+}
+
+function formatIp(ip: string | null): string {
+  if (!ip) return '';
+  if (ip === '::1' || ip === '::1/128' || ip === '127.0.0.1') return 'localhost';
+  return ip;
 }
 
 function DeviceIcon({ device }: { device: 'desktop' | 'mobile' | 'tablet' }) {
-  const props = { size: 20, style: { color: 'var(--color-muted)', flexShrink: 0 } as React.CSSProperties };
-  if (device === 'mobile') return <Smartphone {...props} />;
-  if (device === 'tablet') return <Tablet {...props} />;
-  return <Monitor {...props} />;
-}
-
-function BrowserIcon() {
-  return <Globe size={14} style={{ color: 'var(--color-muted)' }} />;
+  if (device === 'mobile') return <Smartphone size={20} />;
+  if (device === 'tablet') return <Tablet size={20} />;
+  return <Monitor size={20} />;
 }
 
 // ── Component ──
@@ -69,7 +79,6 @@ export default function SessionLimitDialog({
   // Animate in
   useEffect(() => {
     if (isOpen) {
-      // Small delay for CSS transition
       const t = setTimeout(() => setVisible(true), 10);
       document.body.style.overflow = 'hidden';
       return () => {
@@ -81,7 +90,7 @@ export default function SessionLimitDialog({
     }
   }, [isOpen]);
 
-  // Reset selection when dialog opens with new data
+  // Reset selection when dialog opens
   useEffect(() => {
     if (isOpen) setSelected(new Set());
   }, [isOpen, activeSessions]);
@@ -122,25 +131,41 @@ export default function SessionLimitDialog({
     await onRevoke(ids);
   }, [selected, activeSessions.length, onRevoke]);
 
-  // Parsed session data
+  // Parse session display data
   const parsedSessions = useMemo(() =>
     activeSessions.map((s) => {
-      // Use stored browser/os/device_type if available, fall back to user_agent parsing
       const ua = (s as unknown as Record<string, unknown>).user_agent as string | null ?? null;
-      const parsed = parseDevice(ua);
+      const parsed = parseDeviceFromUA(ua);
+
+      const hasBrowser = s.browser && s.browser !== 'Unknown';
+      const hasOs = s.os && s.os !== 'Unknown';
+      const ip = formatIp(s.ip_address);
+
+      // Build a readable title
+      let title: string;
+      if (hasBrowser && hasOs) {
+        title = `${s.browser} on ${s.os}`;
+      } else if (parsed.browser !== 'Unknown' && parsed.os !== 'Unknown') {
+        title = `${parsed.browser} on ${parsed.os}`;
+      } else if (ip && ip !== 'localhost') {
+        title = `Session from ${ip}`;
+      } else {
+        title = 'Active session';
+      }
+
       return {
         ...s,
-        browser: s.browser || parsed.browser,
+        title,
         device: (s.device_type as 'desktop' | 'mobile' | 'tablet') || parsed.device,
-        os: s.os || 'Unknown OS',
+        formattedIp: ip,
       };
     }),
   [activeSessions]);
 
   if (!isOpen) return null;
 
-  // Edge case: 409 but no sessions listed
   const emptySessions = activeSessions.length === 0;
+  const hasSelection = selected.size > 0;
 
   return (
     <div
@@ -161,150 +186,176 @@ export default function SessionLimitDialog({
         style={{
           position: 'absolute',
           inset: 0,
-          backgroundColor: 'rgba(0,0,0,0.5)',
+          backgroundColor: 'rgba(0, 0, 0, 0.6)',
         }}
         onClick={isRevoking ? undefined : onCancel}
         aria-hidden="true"
       />
 
-      {/* Dialog */}
+      {/* Dialog card */}
       <div
         role="dialog"
         aria-modal="true"
         aria-label="Session limit reached"
         style={{
           position: 'relative',
-          width: '100%',
+          width: '90vw',
           maxWidth: 480,
           maxHeight: '90vh',
           display: 'flex',
           flexDirection: 'column',
-          backgroundColor: 'var(--color-surface)',
+          backgroundColor: 'var(--color-bg)',
+          border: '0.5px solid var(--color-border)',
           borderRadius: 12,
-          boxShadow: '0 8px 32px rgba(0,0,0,0.18)',
+          boxShadow: '0 8px 32px rgba(0,0,0,0.2)',
           overflow: 'hidden',
           transform: visible ? 'scale(1)' : 'scale(0.95)',
           transition: 'transform 0.2s ease',
         }}
       >
         {/* Header */}
-        <div
-          style={{
-            padding: '20px 24px 16px',
-            display: 'flex',
-            justifyContent: 'space-between',
-            alignItems: 'flex-start',
-          }}
-        >
-          <div>
-            <h2 style={{ margin: 0, fontSize: 18, fontWeight: 700, color: 'var(--color-fg)' }}>
+        <div style={{ padding: 24, paddingBottom: 16 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+            <h2 style={{
+              margin: 0,
+              fontSize: 20,
+              fontWeight: 500,
+              color: 'var(--color-fg)',
+            }}>
               Session limit reached
             </h2>
-            <p style={{ margin: '6px 0 0', fontSize: 13, color: 'var(--color-muted)' }}>
-              {emptySessions
-                ? 'Session limit reached but no sessions found. Try again or contact support.'
-                : `You have ${maxSessions} active session${maxSessions !== 1 ? 's' : ''}. Revoke one or more to continue.`}
-            </p>
-          </div>
-          <button
-            onClick={onCancel}
-            disabled={isRevoking}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              width: 28,
-              height: 28,
-              borderRadius: 6,
-              border: 'none',
-              cursor: isRevoking ? 'not-allowed' : 'pointer',
-              backgroundColor: 'transparent',
-              color: 'var(--color-muted)',
-              transition: 'background-color 0.15s ease',
-              flexShrink: 0,
-              marginLeft: 8,
-            }}
-            aria-label="Close"
-          >
-            <X size={18} />
-          </button>
-        </div>
-
-        {/* Session list */}
-        {!emptySessions && (
-          <div style={{ flex: 1, overflowY: 'auto', padding: '0 24px' }}>
-            {/* Select all header */}
             <button
-              onClick={toggleAll}
+              onClick={onCancel}
               disabled={isRevoking}
               style={{
                 display: 'flex',
                 alignItems: 'center',
-                gap: 8,
-                width: '100%',
-                padding: '8px 0',
+                justifyContent: 'center',
+                width: 28,
+                height: 28,
+                borderRadius: 6,
                 border: 'none',
-                borderBottom: '1px solid var(--color-border)',
                 cursor: isRevoking ? 'not-allowed' : 'pointer',
                 backgroundColor: 'transparent',
                 color: 'var(--color-muted)',
-                fontSize: 12,
-                fontWeight: 600,
-                textAlign: 'left',
+                flexShrink: 0,
+                marginLeft: 8,
               }}
+              aria-label="Close"
             >
-              {allSelected
-                ? <CheckSquare size={16} style={{ color: 'var(--color-primary)' }} />
-                : <Square size={16} />}
-              Select all ({activeSessions.length})
+              <X size={18} />
             </button>
+          </div>
+          <p style={{
+            margin: '8px 0 0',
+            fontSize: 14,
+            color: 'var(--color-muted)',
+            lineHeight: 1.4,
+          }}>
+            {emptySessions
+              ? 'Session limit reached but no sessions found. Try again or contact support.'
+              : `You have ${maxSessions} active session${maxSessions !== 1 ? 's' : ''}. Revoke one or more to continue.`}
+          </p>
+        </div>
 
-            {/* Session rows */}
+        {/* Session list */}
+        {!emptySessions && (
+          <div style={{ padding: '0 24px', maxHeight: 300, overflowY: 'auto' }}>
+            {/* Select all */}
+            <label style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 8,
+              marginBottom: 12,
+              cursor: isRevoking ? 'not-allowed' : 'pointer',
+            }}>
+              <input
+                type="checkbox"
+                checked={allSelected}
+                onChange={toggleAll}
+                disabled={isRevoking}
+                style={{
+                  width: 18,
+                  height: 18,
+                  accentColor: 'var(--color-primary)',
+                  cursor: isRevoking ? 'not-allowed' : 'pointer',
+                }}
+              />
+              <span style={{ fontSize: 13, color: 'var(--color-muted)' }}>
+                Select all sessions
+              </span>
+            </label>
+
+            {/* Session cards */}
             {parsedSessions.map((session) => {
               const isSelected = selected.has(session.session_id);
               return (
-                <button
+                <label
                   key={session.session_id}
-                  onClick={() => !isRevoking && toggleSession(session.session_id)}
-                  disabled={isRevoking}
                   style={{
                     display: 'flex',
                     alignItems: 'center',
                     gap: 12,
-                    width: '100%',
-                    padding: '12px 0',
-                    border: 'none',
-                    borderBottom: '1px solid var(--color-border)',
+                    padding: '12px 16px',
+                    marginBottom: 8,
+                    backgroundColor: 'var(--color-surface)',
+                    border: isSelected
+                      ? '1px solid var(--color-primary)'
+                      : '0.5px solid var(--color-border)',
+                    borderRadius: 8,
                     cursor: isRevoking ? 'not-allowed' : 'pointer',
-                    backgroundColor: isSelected
-                      ? 'color-mix(in srgb, var(--color-primary) 8%, transparent)'
-                      : 'transparent',
-                    borderRadius: 6,
-                    textAlign: 'left',
-                    transition: 'background-color 0.15s ease',
+                    transition: 'border-color 0.15s ease',
                   }}
                 >
-                  {/* Checkbox */}
-                  {isSelected
-                    ? <CheckSquare size={16} style={{ color: 'var(--color-primary)', flexShrink: 0 }} />
-                    : <Square size={16} style={{ color: 'var(--color-muted)', flexShrink: 0 }} />}
+                  <input
+                    type="checkbox"
+                    checked={isSelected}
+                    onChange={() => !isRevoking && toggleSession(session.session_id)}
+                    disabled={isRevoking}
+                    style={{
+                      width: 18,
+                      height: 18,
+                      accentColor: 'var(--color-primary)',
+                      cursor: isRevoking ? 'not-allowed' : 'pointer',
+                      flexShrink: 0,
+                    }}
+                  />
 
                   {/* Device icon */}
-                  <DeviceIcon device={session.device} />
+                  <div style={{ color: 'var(--color-muted)', flexShrink: 0 }}>
+                    <DeviceIcon device={session.device} />
+                  </div>
 
                   {/* Details */}
                   <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, fontWeight: 500, color: 'var(--color-fg)' }}>
-                      <BrowserIcon />
-                      {session.browser} on {session.os}
+                    <div style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 6,
+                      fontSize: 14,
+                      fontWeight: 500,
+                      color: 'var(--color-fg)',
+                    }}>
+                      <Globe size={14} style={{ color: 'var(--color-muted)', flexShrink: 0 }} />
+                      {session.title}
                     </div>
-                    <div style={{ fontSize: 12, color: 'var(--color-muted)', marginTop: 2 }}>
-                      {session.ip_address || 'Unknown IP'}
-                      <span style={{ margin: '0 6px' }}>&middot;</span>
+                    <div style={{
+                      fontSize: 13,
+                      color: 'var(--color-muted)',
+                      marginTop: 2,
+                    }}>
+                      {session.formattedIp || 'Unknown IP'}
+                    </div>
+                    <div style={{
+                      fontSize: 12,
+                      color: 'var(--color-muted)',
+                      marginTop: 2,
+                      opacity: 0.7,
+                    }}>
                       Last active {timeAgo(session.last_activity_at)}
                     </div>
                   </div>
-                </button>
+                </label>
               );
             })}
           </div>
@@ -312,46 +363,44 @@ export default function SessionLimitDialog({
 
         {/* Error */}
         {error && (
-          <div
-            style={{
-              margin: '0 24px',
-              padding: '8px 12px',
-              borderRadius: 6,
-              fontSize: 13,
-              backgroundColor: 'color-mix(in srgb, var(--color-danger) 10%, transparent)',
-              color: 'var(--color-danger)',
-            }}
-          >
+          <div style={{
+            margin: '8px 24px 0',
+            padding: '8px 12px',
+            borderRadius: 6,
+            fontSize: 13,
+            backgroundColor: 'color-mix(in srgb, var(--color-danger) 10%, transparent)',
+            color: 'var(--color-danger)',
+          }}>
             {error}
           </div>
         )}
 
         {/* Footer */}
-        <div
-          style={{
-            padding: '16px 24px',
-            display: 'flex',
-            justifyContent: 'flex-end',
-            gap: 10,
-            borderTop: '1px solid var(--color-border)',
-          }}
-        >
+        <div style={{
+          padding: '16px 24px',
+          display: 'flex',
+          justifyContent: 'flex-end',
+          gap: 10,
+          borderTop: '1px solid var(--color-border)',
+          marginTop: 8,
+        }}>
+          {/* Cancel button */}
           <button
             onClick={onCancel}
             disabled={isRevoking}
             style={{
-              padding: '8px 16px',
+              padding: '10px 20px',
               borderRadius: 8,
-              border: '1px solid var(--color-border)',
+              border: '0.5px solid var(--color-border)',
               cursor: isRevoking ? 'not-allowed' : 'pointer',
-              fontSize: 13,
+              fontSize: 14,
               fontWeight: 500,
               backgroundColor: 'transparent',
               color: 'var(--color-fg)',
               transition: 'background-color 0.15s ease',
             }}
             onMouseEnter={(e) => {
-              e.currentTarget.style.backgroundColor = 'var(--color-surface-hover)';
+              if (!isRevoking) e.currentTarget.style.backgroundColor = 'var(--color-surface-hover)';
             }}
             onMouseLeave={(e) => {
               e.currentTarget.style.backgroundColor = 'transparent';
@@ -359,42 +408,41 @@ export default function SessionLimitDialog({
           >
             Cancel
           </button>
+
+          {/* Revoke & Sign in button */}
           {!emptySessions && (
             <button
               onClick={handleRevoke}
-              disabled={selected.size === 0 || isRevoking}
+              disabled={!hasSelection || isRevoking}
               style={{
-                padding: '8px 20px',
+                padding: '10px 20px',
                 borderRadius: 8,
                 border: 'none',
-                cursor: selected.size === 0 || isRevoking ? 'not-allowed' : 'pointer',
-                fontSize: 13,
+                cursor: !hasSelection || isRevoking ? 'not-allowed' : 'pointer',
+                fontSize: 14,
                 fontWeight: 600,
-                backgroundColor: selected.size > 0
-                  ? 'var(--color-danger)'
-                  : 'var(--color-surface-hover)',
-                color: selected.size > 0
-                  ? 'var(--color-primary-fg)'
-                  : 'var(--color-muted)',
+                backgroundColor: 'var(--color-primary)',
+                color: 'var(--color-primary-fg)',
                 display: 'flex',
                 alignItems: 'center',
                 gap: 6,
-                transition: 'background-color 0.15s ease, opacity 0.15s ease',
-                opacity: selected.size === 0 ? 0.6 : 1,
+                transition: 'opacity 0.15s ease',
+                opacity: !hasSelection || isRevoking ? 0.5 : 1,
               }}
             >
-              {isRevoking && <Loader2 size={14} style={{ animation: 'spin 1s linear infinite' }} />}
+              {isRevoking && <Loader2 size={14} className="vn-spin" />}
               {isRevoking
                 ? 'Revoking...'
-                : `Revoke ${selected.size} session${selected.size !== 1 ? 's' : ''} & login`}
+                : `Revoke ${selected.size} session${selected.size !== 1 ? 's' : ''} & sign in`}
             </button>
           )}
         </div>
       </div>
 
-      {/* Spinner keyframes */}
+      {/* Spinner animation */}
       <style>{`
-        @keyframes spin {
+        .vn-spin { animation: vn-spin 1s linear infinite; }
+        @keyframes vn-spin {
           from { transform: rotate(0deg); }
           to { transform: rotate(360deg); }
         }
