@@ -33,6 +33,19 @@ export interface SidebarConfig {
   defaultCollapsed?: boolean;
 }
 
+// ── Settings config ──
+
+export interface SettingsTab {
+  /** Unique tab identifier */
+  id: string;
+  /** Display label */
+  label: string;
+  /** Lucide icon name (e.g. 'User', 'Shield', 'Palette') */
+  icon: string;
+  /** Component key for registry lookup */
+  component: string;
+}
+
 export interface NavbarConfig {
   /** Show live/test environment toggle. Default: false */
   showEnvironmentToggle?: boolean;
@@ -141,6 +154,10 @@ export interface ShellConfig {
   sidebar?: SidebarConfig;
   /** Navbar configuration */
   navbar?: NavbarConfig;
+  /** Settings page tab configuration */
+  settings?: {
+    tabs: SettingsTab[];
+  };
 }
 
 // ── Default config (framework demo) ──
@@ -157,4 +174,12 @@ export const DEFAULT_SHELL_CONFIG: ShellConfig = {
     steps: DEFAULT_ONBOARDING_STEPS,
   },
   providers: [],
+  settings: {
+    tabs: [
+      { id: 'profile', label: 'Profile', icon: 'User', component: 'profile' },
+      { id: 'security', label: 'Security', icon: 'Shield', component: 'security' },
+      { id: 'theme', label: 'Preferred theme', icon: 'Palette', component: 'theme' },
+      { id: 'sessions', label: 'Sessions', icon: 'Monitor', component: 'sessions' },
+    ],
+  },
 };

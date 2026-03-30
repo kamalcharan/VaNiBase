@@ -493,7 +493,9 @@ export async function me(userId: string, tenantId: string): Promise<Record<strin
 
   const { rows } = await pool.query(
     `SELECT
-       u.id, u.tenant_id, u.email, u.name, u.avatar_url, u.preferences, u.preferred_theme,
+       u.id, u.tenant_id, u.email, u.name, u.first_name, u.last_name,
+       u.designation, u.country_code, u.mobile,
+       u.avatar_url, u.preferences, u.preferred_theme,
        t.slug as tenant_slug, t.status as tenant_status,
        tp.name as tenant_name, tp.display_name as tenant_display_name,
        tp.theme_id as tenant_theme_id, tp.logo_url as tenant_logo_url,
@@ -521,6 +523,11 @@ export async function me(userId: string, tenantId: string): Promise<Record<strin
       tenant_id: row.tenant_id,
       email: row.email,
       name: row.name,
+      first_name: row.first_name || null,
+      last_name: row.last_name || null,
+      designation: row.designation || null,
+      country_code: row.country_code || null,
+      mobile: row.mobile || null,
       avatar_url: row.avatar_url,
       roles,
       preferences: row.preferences || {},
@@ -648,4 +655,122 @@ export async function updatePreferences(
 
   const row = result.rows[0] as { preferences: Record<string, unknown>; preferred_theme: string | null };
   return { ...row.preferences, preferred_theme: row.preferred_theme };
+}
+
+/**
+ * Update user profile fields.
+ */
+export async function updateProfile(
+  userId: string,
+  fields: { first_name?: string; last_name?: string; designation?: string; country_code?: string; mobile?: string },
+): Promise<Record<string, unknown>> {
+  const pool = getPool();
+
+  const allowed = ['first_name', 'last_name', 'designation', 'country_code', 'mobile'] as const;
+  const setClauses: string[] = [];
+  const values: unknown[] = [];
+  let idx = 1;
+
+  for (const key of allowed) {
+    if (fields[key] !== undefined) {
+      setClauses.push(`${key} = $${idx}`);
+      values.push(fields[key]);
+      idx++;
+    }
+  }
+
+  if (setClauses.length === 0) {
+    throw Object.assign(new Error('No fields to update'), { status: 400, code: 'INVALID_REQUEST' });
+  }
+
+  setClauses.push(`updated_at = now()`);
+  values.push(userId);
+
+  const result = await pool.query(
+    `UPDATE VN_users SET ${setClauses.join(', ')} WHERE id = $${idx}
+     RETURNING id, email, name, first_name, last_name, designation, country_code, mobile, avatar_url`,
+    values,
+  );
+
+  if (result.rows.length === 0) {
+    throw Object.assign(new Error('User not found'), { status: 404, code: 'AUTH_USER_NOT_FOUND' });
+  }
+
+  const { rows: userRows } = await pool.query('SELECT tenant_id FROM VN_users WHERE id = $1', [userId]);
+  auditLog((userRows[0] as { tenant_id: string } | undefined)?.tenant_id || null, userId, 'config', 'profile_updated', {
+    metadata: fields,
+  });
+
+  return result.rows[0] as Record<string, unknown>;
+}
+
+/**
+ * List active sessions for a user.
+ */
+export async function listSessions(
+  userId: string,
+  currentTokenHash?: string,
+): Promise<{ sessions: Record<string, unknown>[] }> {
+  const pool = getPool();
+
+  const { rows } = await pool.query(
+    `SELECT id, device_type, browser, os, ip_address::text, user_agent,
+            created_at, last_activity_at, token_hash
+     FROM VN_refresh_tokens
+     WHERE user_id = $1 AND is_active = true AND expires_at > now()
+     ORDER BY last_activity_at DESC`,
+    [userId],
+  );
+
+  const sessions = rows.map((r) => ({
+    id: r.id,
+    device_type: r.device_type,
+    browser: r.browser,
+    os: r.os,
+    ip_address: r.ip_address,
+    user_agent: r.user_agent,
+    created_at: r.created_at,
+    last_activity_at: r.last_activity_at,
+    is_current: currentTokenHash ? r.token_hash === currentTokenHash : false,
+  }));
+
+  return { sessions };
+}
+
+/**
+ * Revoke a single session by ID. Cannot revoke current session.
+ */
+export async function revokeSession(
+  userId: string,
+  sessionId: string,
+  currentTokenHash?: string,
+): Promise<void> {
+  const pool = getPool();
+
+  // Check if this is the current session
+  if (currentTokenHash) {
+    const { rows } = await pool.query(
+      'SELECT token_hash FROM VN_refresh_tokens WHERE id = $1 AND user_id = $2',
+      [sessionId, userId],
+    );
+    if (rows.length > 0 && rows[0].token_hash === currentTokenHash) {
+      throw Object.assign(new Error('Cannot revoke current session'), { status: 400, code: 'CANNOT_REVOKE_CURRENT' });
+    }
+  }
+
+  const result = await pool.query(
+    `UPDATE VN_refresh_tokens SET is_active = false, revoked_at = now(), revoked_reason = 'user_logout'
+     WHERE id = $1 AND user_id = $2 AND is_active = true
+     RETURNING id`,
+    [sessionId, userId],
+  );
+
+  if (result.rows.length === 0) {
+    throw Object.assign(new Error('Session not found'), { status: 404, code: 'SESSION_NOT_FOUND' });
+  }
+
+  const { rows: userRows } = await pool.query('SELECT tenant_id FROM VN_users WHERE id = $1', [userId]);
+  auditLog((userRows[0] as { tenant_id: string } | undefined)?.tenant_id || null, userId, 'auth', 'session_revoked', {
+    targetType: 'session', targetId: sessionId,
+  });
 }

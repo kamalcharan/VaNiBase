@@ -9,6 +9,11 @@ export interface AuthUser {
   tenant_id: string;
   email: string;
   name: string;
+  first_name?: string | null;
+  last_name?: string | null;
+  designation?: string | null;
+  country_code?: string | null;
+  mobile?: string | null;
   roles: string[];
   avatar_url?: string | null;
   preferences?: Record<string, unknown>;
