@@ -40,6 +40,30 @@ function slugify(name: string): string {
     .slice(0, 80);
 }
 
+/** Parse user_agent string into device_type, os, and browser. */
+function parseUserAgent(ua?: string): { device_type: string; os: string; browser: string } {
+  if (!ua) return { device_type: 'unknown', os: 'Unknown', browser: 'Unknown' };
+
+  // Browser
+  const browser = ua.includes('Edg') ? 'Edge' :
+    ua.includes('Chrome') ? 'Chrome' :
+    ua.includes('Firefox') ? 'Firefox' :
+    ua.includes('Safari') ? 'Safari' : 'Unknown';
+
+  // OS
+  const os = ua.includes('Windows') ? 'Windows' :
+    ua.includes('Mac OS') ? 'macOS' :
+    ua.includes('iPhone') || ua.includes('iPad') ? 'iOS' :
+    ua.includes('Android') ? 'Android' :
+    ua.includes('Linux') ? 'Linux' : 'Unknown';
+
+  // Device type
+  const device_type = /Mobile|Android(?!.*Tablet)/i.test(ua) ? 'mobile' :
+    /Tablet|iPad/i.test(ua) ? 'tablet' : 'desktop';
+
+  return { device_type, os, browser };
+}
+
 /** Map subscription plan_code to the SubscriptionTier enum for backward compat. */
 function planToTier(planCode: string): SubscriptionTier {
   if (planCode === 'enterprise' || planCode === 'custom') return 'enterprise';
@@ -114,7 +138,7 @@ function auditLog(
   ).catch((err) => console.error('[AuditLog] Write failed:', (err as Error).message));
 }
 
-/** Store a refresh token hash in VN_refresh_tokens. */
+/** Store a refresh token hash in VN_refresh_tokens with parsed device info. */
 async function storeRefreshToken(
   userId: string,
   tenantId: string,
@@ -124,10 +148,13 @@ async function storeRefreshToken(
 ): Promise<void> {
   const pool = getPool();
   const expiresAt = new Date(Date.now() + REFRESH_TOKEN_SECONDS * 1000).toISOString();
+  const { device_type, os, browser } = parseUserAgent(userAgent);
   await pool.query(
-    `INSERT INTO VN_refresh_tokens (user_id, tenant_id, token_hash, user_agent, ip_address, expires_at)
-     VALUES ($1, $2, $3, $4, $5::inet, $6)`,
-    [userId, tenantId, hashToken(refreshToken), userAgent || null, ipAddress || null, expiresAt],
+    `INSERT INTO VN_refresh_tokens
+       (user_id, tenant_id, token_hash, user_agent, ip_address, device_type, os, browser, expires_at)
+     VALUES ($1, $2, $3, $4, $5::inet, $6, $7, $8, $9)`,
+    [userId, tenantId, hashToken(refreshToken), userAgent || null, ipAddress || null,
+     device_type, os, browser, expiresAt],
   );
 }
 
@@ -323,9 +350,15 @@ export async function login(
   );
 
   // --- Session limit check ---
-  // First, purge expired sessions to avoid counting dead tokens
+  // 1. Delete truly expired tokens
   await pool.query(
     'DELETE FROM VN_refresh_tokens WHERE user_id = $1 AND expires_at < NOW()',
+    [user.id],
+  );
+  // 2. Deactivate idle sessions (no activity in last 2 hours) — catches zombie tabs
+  await pool.query(
+    `UPDATE VN_refresh_tokens SET is_active = false, revoked_at = now(), revoked_reason = 'expired'
+     WHERE user_id = $1 AND is_active = true AND last_activity_at < NOW() - INTERVAL '2 hours'`,
     [user.id],
   );
 
