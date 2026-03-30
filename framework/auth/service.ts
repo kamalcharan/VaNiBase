@@ -494,7 +494,7 @@ export async function me(userId: string, tenantId: string): Promise<Record<strin
   const { rows } = await pool.query(
     `SELECT
        u.id, u.tenant_id, u.email, u.name, u.first_name, u.last_name,
-       u.designation, u.country_code, u.mobile,
+       u.designation, u.country_code, u.mobile, u.bio,
        u.avatar_url, u.preferences, u.preferred_theme,
        t.slug as tenant_slug, t.status as tenant_status,
        tp.name as tenant_name, tp.display_name as tenant_display_name,
@@ -528,6 +528,7 @@ export async function me(userId: string, tenantId: string): Promise<Record<strin
       designation: row.designation || null,
       country_code: row.country_code || null,
       mobile: row.mobile || null,
+      bio: row.bio || null,
       avatar_url: row.avatar_url,
       roles,
       preferences: row.preferences || {},

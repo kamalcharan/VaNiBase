@@ -62,7 +62,7 @@ export async function getOnboardingStatus(tenantId: string): Promise<OnboardingS
 
 /**
  * Mark an onboarding step as completed.
- * If step_id is 'user_profile', also persist profile fields to VN_users.
+ * Persists step metadata to the correct DB table before marking complete.
  */
 export async function updateOnboardingStep(
   tenantId: string,
@@ -86,9 +86,10 @@ export async function updateOnboardingStep(
   const existingMeta = (existing[0] as { metadata: Record<string, unknown> }).metadata || {};
   const mergedMeta = metadata ? { ...existingMeta, ...metadata } : existingMeta;
 
-  // If user_profile step, persist profile fields to VN_users BEFORE marking complete
-  if (stepId === 'user_profile' && metadata && userId) {
-    await persistProfileFromMetadata(userId, metadata);
+  // Persist step data to correct table BEFORE marking complete
+  if (metadata && Object.keys(metadata).length > 0) {
+    console.log(`[ONBOARDING] Step "${stepId}" metadata:`, JSON.stringify(metadata));
+    await persistStepData(stepId, tenantId, userId, metadata);
   }
 
   const { rows } = await pool.query(
@@ -102,24 +103,57 @@ export async function updateOnboardingStep(
   return rows[0] as OnboardingStep;
 }
 
+// ── Step data persistence ──
+
 /**
- * Persist profile fields from onboarding metadata to VN_users.
- * Maps common field name variants to the canonical VN_users columns.
+ * Route step data to the correct table based on step_id.
+ * Throws on DB error — caller must NOT mark step complete if this fails.
  */
-async function persistProfileFromMetadata(
+async function persistStepData(
+  stepId: string,
+  tenantId: string,
+  userId: string | undefined,
+  metadata: Record<string, unknown>,
+): Promise<void> {
+  switch (stepId) {
+    case 'user_profile':
+      if (userId) await persistUserProfile(userId, metadata);
+      break;
+    case 'business_profile':
+      await persistBusinessProfile(tenantId, metadata);
+      break;
+    case 'theme':
+    case 'theme_selection':
+      if (userId) await persistThemeSelection(userId, metadata);
+      break;
+    case 'preferences':
+    case 'investment_preferences':
+      await persistPreferences(tenantId, metadata);
+      break;
+    default:
+      console.log(`[ONBOARDING] No persistence handler for step "${stepId}", metadata stored only`);
+  }
+}
+
+/**
+ * user_profile step → VN_users
+ * Fields: first_name, last_name, name, designation, country_code, mobile, bio
+ */
+async function persistUserProfile(
   userId: string,
   metadata: Record<string, unknown>,
 ): Promise<void> {
   const pool = getPool();
 
-  // Map field name variants from frontend step components
+  // Map field name variants from frontend
   let firstName = (metadata.first_name || metadata.firstName) as string | undefined;
   let lastName = (metadata.last_name || metadata.lastName) as string | undefined;
   const designation = (metadata.designation || metadata.role) as string | undefined;
   const countryCode = (metadata.country_code || metadata.countryCode) as string | undefined;
   const mobile = (metadata.mobile || metadata.phone) as string | undefined;
+  const bio = metadata.bio as string | undefined;
 
-  // If only "name" is provided, split into first_name + last_name
+  // If only "name" provided, split into first + last
   if (!firstName && !lastName && metadata.name && typeof metadata.name === 'string') {
     const parts = metadata.name.trim().split(/\s+/);
     firstName = parts[0];
@@ -135,16 +169,16 @@ async function persistProfileFromMetadata(
   if (designation) { setClauses.push(`designation = $${idx++}`); values.push(designation); }
   if (countryCode) { setClauses.push(`country_code = $${idx++}`); values.push(countryCode); }
   if (mobile) { setClauses.push(`mobile = $${idx++}`); values.push(mobile); }
+  if (bio) { setClauses.push(`bio = $${idx++}`); values.push(bio); }
 
-  // Also sync the name column
+  // Sync name column
   if (firstName || lastName) {
-    const fullName = [firstName, lastName].filter(Boolean).join(' ');
     setClauses.push(`name = $${idx++}`);
-    values.push(fullName);
+    values.push([firstName, lastName].filter(Boolean).join(' '));
   }
 
   if (setClauses.length === 0) {
-    console.log('[ONBOARDING] No profile fields to persist from metadata:', metadata);
+    console.log('[PERSIST] user_profile: no mappable fields in:', metadata);
     return;
   }
 
@@ -152,11 +186,101 @@ async function persistProfileFromMetadata(
   values.push(userId);
 
   const sql = `UPDATE VN_users SET ${setClauses.join(', ')} WHERE id = $${idx}`;
-  console.log('[ONBOARDING] Persisting profile to VN_users:', sql, values);
+  console.log('[PERSIST] VN_users:', sql, values);
+  await pool.query(sql, values);
+}
 
-  await pool.query(sql,
-    values,
-  );
+/**
+ * business_profile step → VN_tenant_profiles
+ * Fields: firm_name→name, business_type→type, arn, pan, gstin,
+ *         address→address_line1, city, state, pin→postal_code, phone
+ */
+async function persistBusinessProfile(
+  tenantId: string,
+  metadata: Record<string, unknown>,
+): Promise<void> {
+  const pool = getPool();
+
+  // Map field name variants
+  const firmName = (metadata.firm_name || metadata.firmName || metadata.business_name) as string | undefined;
+  const businessType = (metadata.business_type || metadata.businessType || metadata.type) as string | undefined;
+  const arn = metadata.arn as string | undefined;
+  const pan = metadata.pan as string | undefined;
+  const gstin = metadata.gstin as string | undefined;
+  const address = (metadata.address || metadata.address_line1) as string | undefined;
+  const city = metadata.city as string | undefined;
+  const state = metadata.state as string | undefined;
+  const postalCode = (metadata.pin || metadata.postal_code || metadata.pincode || metadata.zip) as string | undefined;
+  const phone = (metadata.phone || metadata.mobile) as string | undefined;
+
+  const setClauses: string[] = [];
+  const values: unknown[] = [];
+  let idx = 1;
+
+  if (firmName) { setClauses.push(`name = $${idx++}`); values.push(firmName); setClauses.push(`display_name = $${idx++}`); values.push(firmName); }
+  if (businessType) { setClauses.push(`type = $${idx++}`); values.push(businessType); }
+  if (arn) { setClauses.push(`arn = $${idx++}`); values.push(arn); }
+  if (pan) { setClauses.push(`pan = $${idx++}`); values.push(pan); }
+  if (gstin) { setClauses.push(`gstin = $${idx++}`); values.push(gstin); }
+  if (address) { setClauses.push(`address_line1 = $${idx++}`); values.push(address); }
+  if (city) { setClauses.push(`city = $${idx++}`); values.push(city); }
+  if (state) { setClauses.push(`state = $${idx++}`); values.push(state); }
+  if (postalCode) { setClauses.push(`postal_code = $${idx++}`); values.push(postalCode); }
+  if (phone) { setClauses.push(`phone = $${idx++}`); values.push(phone); }
+
+  if (setClauses.length === 0) {
+    console.log('[PERSIST] business_profile: no mappable fields in:', metadata);
+    return;
+  }
+
+  setClauses.push('updated_at = now()');
+  values.push(tenantId);
+
+  const sql = `UPDATE VN_tenant_profiles SET ${setClauses.join(', ')} WHERE tenant_id = $${idx}`;
+  console.log('[PERSIST] VN_tenant_profiles:', sql, values);
+  await pool.query(sql, values);
+}
+
+/**
+ * theme step → VN_users.preferred_theme
+ */
+async function persistThemeSelection(
+  userId: string,
+  metadata: Record<string, unknown>,
+): Promise<void> {
+  const pool = getPool();
+  const themeId = (metadata.theme_id || metadata.themeId || metadata.theme) as string | undefined;
+  if (!themeId) {
+    console.log('[PERSIST] theme: no theme_id in:', metadata);
+    return;
+  }
+
+  const sql = 'UPDATE VN_users SET preferred_theme = $1, updated_at = now() WHERE id = $2';
+  console.log('[PERSIST] VN_users.preferred_theme:', sql, [themeId, userId]);
+  await pool.query(sql, [themeId, userId]);
+}
+
+/**
+ * preferences step → VN_tenant_profiles.settings JSONB
+ * Fields: default_risk_profile, preferred_investment_horizon,
+ *         sip_default_day, default_sip_frequency, etc.
+ */
+async function persistPreferences(
+  tenantId: string,
+  metadata: Record<string, unknown>,
+): Promise<void> {
+  const pool = getPool();
+
+  // Store all preference fields in the settings JSONB column
+  const prefKeys = Object.keys(metadata);
+  if (prefKeys.length === 0) {
+    console.log('[PERSIST] preferences: empty metadata');
+    return;
+  }
+
+  const sql = `UPDATE VN_tenant_profiles SET settings = settings || $1::jsonb, updated_at = now() WHERE tenant_id = $2`;
+  console.log('[PERSIST] VN_tenant_profiles.settings:', sql, [metadata, tenantId]);
+  await pool.query(sql, [JSON.stringify(metadata), tenantId]);
 }
 
 /**
