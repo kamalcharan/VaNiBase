@@ -62,11 +62,13 @@ export async function getOnboardingStatus(tenantId: string): Promise<OnboardingS
 
 /**
  * Mark an onboarding step as completed.
+ * If step_id is 'user_profile', also persist profile fields to VN_users.
  */
 export async function updateOnboardingStep(
   tenantId: string,
   stepId: string,
   metadata?: Record<string, unknown>,
+  userId?: string,
 ): Promise<OnboardingStep> {
   const pool = getPool();
 
@@ -84,6 +86,11 @@ export async function updateOnboardingStep(
   const existingMeta = (existing[0] as { metadata: Record<string, unknown> }).metadata || {};
   const mergedMeta = metadata ? { ...existingMeta, ...metadata } : existingMeta;
 
+  // If user_profile step, persist profile fields to VN_users BEFORE marking complete
+  if (stepId === 'user_profile' && metadata && userId) {
+    await persistProfileFromMetadata(userId, metadata);
+  }
+
   const { rows } = await pool.query(
     `UPDATE VN_tenant_onboarding
      SET status = 'completed', completed_at = now(), metadata = $1
@@ -93,6 +100,58 @@ export async function updateOnboardingStep(
   );
 
   return rows[0] as OnboardingStep;
+}
+
+/**
+ * Persist profile fields from onboarding metadata to VN_users.
+ * Maps common field name variants to the canonical VN_users columns.
+ */
+async function persistProfileFromMetadata(
+  userId: string,
+  metadata: Record<string, unknown>,
+): Promise<void> {
+  const pool = getPool();
+
+  // Map field name variants from frontend step components
+  let firstName = (metadata.first_name || metadata.firstName) as string | undefined;
+  let lastName = (metadata.last_name || metadata.lastName) as string | undefined;
+  const designation = (metadata.designation || metadata.role) as string | undefined;
+  const countryCode = (metadata.country_code || metadata.countryCode) as string | undefined;
+  const mobile = (metadata.mobile || metadata.phone) as string | undefined;
+
+  // If only "name" is provided, split into first_name + last_name
+  if (!firstName && !lastName && metadata.name && typeof metadata.name === 'string') {
+    const parts = metadata.name.trim().split(/\s+/);
+    firstName = parts[0];
+    lastName = parts.slice(1).join(' ') || undefined;
+  }
+
+  const setClauses: string[] = [];
+  const values: unknown[] = [];
+  let idx = 1;
+
+  if (firstName) { setClauses.push(`first_name = $${idx++}`); values.push(firstName); }
+  if (lastName) { setClauses.push(`last_name = $${idx++}`); values.push(lastName); }
+  if (designation) { setClauses.push(`designation = $${idx++}`); values.push(designation); }
+  if (countryCode) { setClauses.push(`country_code = $${idx++}`); values.push(countryCode); }
+  if (mobile) { setClauses.push(`mobile = $${idx++}`); values.push(mobile); }
+
+  // Also sync the name column
+  if (firstName || lastName) {
+    const fullName = [firstName, lastName].filter(Boolean).join(' ');
+    setClauses.push(`name = $${idx++}`);
+    values.push(fullName);
+  }
+
+  if (setClauses.length === 0) return;
+
+  setClauses.push('updated_at = now()');
+  values.push(userId);
+
+  await pool.query(
+    `UPDATE VN_users SET ${setClauses.join(', ')} WHERE id = $${idx}`,
+    values,
+  );
 }
 
 /**

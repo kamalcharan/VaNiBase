@@ -48,7 +48,7 @@ export function createOnboardingRouter(): Router {
         throw new ValidationError('status must be "completed"');
       }
 
-      const step = await updateOnboardingStep(auth.tenant_id, step_id, metadata);
+      const step = await updateOnboardingStep(auth.tenant_id, step_id, metadata, auth.sub);
       res.json(step);
     } catch (err) {
       next(err);

@@ -683,6 +683,25 @@ export async function updateProfile(
     throw Object.assign(new Error('No fields to update'), { status: 400, code: 'INVALID_REQUEST' });
   }
 
+  // Sync the name column when first_name or last_name is updated
+  if (fields.first_name !== undefined || fields.last_name !== undefined) {
+    // Fetch current values for the fields not being updated
+    const { rows: current } = await pool.query(
+      'SELECT first_name, last_name FROM VN_users WHERE id = $1',
+      [userId],
+    );
+    if (current.length > 0) {
+      const fn = fields.first_name ?? current[0].first_name ?? '';
+      const ln = fields.last_name ?? current[0].last_name ?? '';
+      const fullName = [fn, ln].filter(Boolean).join(' ');
+      if (fullName) {
+        setClauses.push(`name = $${idx}`);
+        values.push(fullName);
+        idx++;
+      }
+    }
+  }
+
   setClauses.push(`updated_at = now()`);
   values.push(userId);
 
