@@ -143,13 +143,18 @@ async function persistProfileFromMetadata(
     values.push(fullName);
   }
 
-  if (setClauses.length === 0) return;
+  if (setClauses.length === 0) {
+    console.log('[ONBOARDING] No profile fields to persist from metadata:', metadata);
+    return;
+  }
 
   setClauses.push('updated_at = now()');
   values.push(userId);
 
-  await pool.query(
-    `UPDATE VN_users SET ${setClauses.join(', ')} WHERE id = $${idx}`,
+  const sql = `UPDATE VN_users SET ${setClauses.join(', ')} WHERE id = $${idx}`;
+  console.log('[ONBOARDING] Persisting profile to VN_users:', sql, values);
+
+  await pool.query(sql,
     values,
   );
 }

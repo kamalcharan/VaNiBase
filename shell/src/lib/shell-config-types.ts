@@ -146,7 +146,7 @@ export interface ShellConfig {
   };
   /** Map of onboarding step component names to React components.
    *  Products register their step form components here. Key = step.component string. */
-  onboardingRegistry?: Record<string, ComponentType<{ onComplete: () => void; onSkip?: () => void }>>;
+  onboardingRegistry?: Record<string, ComponentType<{ onComplete: (data?: Record<string, unknown>) => void; onSkip?: () => void }>>;
   /** Product-level context providers to wrap around the app.
    *  First provider in array = outermost wrapper. */
   providers?: ComponentType<{ children: ReactNode }>[];
